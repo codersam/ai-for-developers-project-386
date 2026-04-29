@@ -1,0 +1,7 @@
+Client TimeZone from Browser:
+
+// Source - https://stackoverflow.com/questions/1091372/getting-the-clients-time-zone-and-offset-in-javascript
+// Posted by null
+// Retrieved 2026-04-30, License - null
+
+console.log(Intl.DateTimeFormat().resolvedOptions().timeZone)
