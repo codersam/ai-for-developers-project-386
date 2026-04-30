@@ -1,0 +1,407 @@
+openapi: 3.1.0
+info:
+  title: Calendar Service
+  version: 0.0.0
+tags:
+  - name: Calendar
+paths:
+  /calendar/event_types:
+    post:
+      operationId: CalendarService_createEventType
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventType'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Calendar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventType'
+    get:
+      operationId: CalendarService_listEventTypes
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EventType'
+              example:
+                - eventTypeId: et_intro_30
+                  eventTypeName: Intro Call
+                  description: A short get-to-know-you chat. Great for first contact.
+                  durationMinutes: 30
+                - eventTypeId: et_strategy_60
+                  eventTypeName: Strategy Session
+                  description: Deep-dive working session for project planning and roadmapping.
+                  durationMinutes: 60
+                - eventTypeId: et_quick_15
+                  eventTypeName: Quick Sync
+                  description: Fast 15-minute check-in for status updates or quick questions.
+                  durationMinutes: 15
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Calendar
+  /calendar/event_types/{eventTypeId}/available_slots:
+    get:
+      operationId: CalendarService_listAvailableSlots
+      parameters:
+        - name: eventTypeId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: clientTimeZone
+          in: query
+          required: true
+          schema:
+            type: string
+          explode: false
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TimeSlotsOfTheDay'
+              example:
+                - date: '2026-05-01'
+                  timeSlots:
+                    - { timeStart: '09:00:00', duration: 30 }
+                    - { timeStart: '09:30:00', duration: 30 }
+                    - { timeStart: '10:00:00', duration: 30 }
+                    - { timeStart: '11:00:00', duration: 30 }
+                    - { timeStart: '14:00:00', duration: 30 }
+                    - { timeStart: '14:30:00', duration: 30 }
+                    - { timeStart: '15:00:00', duration: 30 }
+                    - { timeStart: '16:00:00', duration: 30 }
+                - date: '2026-05-04'
+                  timeSlots:
+                    - { timeStart: '09:00:00', duration: 30 }
+                    - { timeStart: '09:30:00', duration: 30 }
+                    - { timeStart: '10:30:00', duration: 30 }
+                    - { timeStart: '13:00:00', duration: 30 }
+                    - { timeStart: '13:30:00', duration: 30 }
+                    - { timeStart: '15:00:00', duration: 30 }
+                    - { timeStart: '15:30:00', duration: 30 }
+                - date: '2026-05-05'
+                  timeSlots:
+                    - { timeStart: '09:30:00', duration: 30 }
+                    - { timeStart: '10:00:00', duration: 30 }
+                    - { timeStart: '10:30:00', duration: 30 }
+                    - { timeStart: '11:00:00', duration: 30 }
+                    - { timeStart: '14:00:00', duration: 30 }
+                    - { timeStart: '15:00:00', duration: 30 }
+                    - { timeStart: '16:30:00', duration: 30 }
+                - date: '2026-05-06'
+                  timeSlots:
+                    - { timeStart: '09:00:00', duration: 30 }
+                    - { timeStart: '11:00:00', duration: 30 }
+                    - { timeStart: '11:30:00', duration: 30 }
+                    - { timeStart: '13:00:00', duration: 30 }
+                    - { timeStart: '14:30:00', duration: 30 }
+                    - { timeStart: '15:00:00', duration: 30 }
+                - date: '2026-05-07'
+                  timeSlots:
+                    - { timeStart: '09:00:00', duration: 30 }
+                    - { timeStart: '09:30:00', duration: 30 }
+                    - { timeStart: '10:00:00', duration: 30 }
+                    - { timeStart: '13:30:00', duration: 30 }
+                    - { timeStart: '14:00:00', duration: 30 }
+                    - { timeStart: '14:30:00', duration: 30 }
+                    - { timeStart: '15:00:00', duration: 30 }
+                    - { timeStart: '16:00:00', duration: 30 }
+                - date: '2026-05-08'
+                  timeSlots:
+                    - { timeStart: '10:00:00', duration: 30 }
+                    - { timeStart: '10:30:00', duration: 30 }
+                    - { timeStart: '11:00:00', duration: 30 }
+                    - { timeStart: '13:00:00', duration: 30 }
+                    - { timeStart: '15:30:00', duration: 30 }
+                - date: '2026-05-11'
+                  timeSlots:
+                    - { timeStart: '09:00:00', duration: 30 }
+                    - { timeStart: '10:00:00', duration: 30 }
+                    - { timeStart: '11:00:00', duration: 30 }
+                    - { timeStart: '14:00:00', duration: 30 }
+                    - { timeStart: '15:00:00', duration: 30 }
+                    - { timeStart: '16:00:00', duration: 30 }
+                - date: '2026-05-12'
+                  timeSlots:
+                    - { timeStart: '09:30:00', duration: 30 }
+                    - { timeStart: '10:00:00', duration: 30 }
+                    - { timeStart: '13:00:00', duration: 30 }
+                    - { timeStart: '14:00:00', duration: 30 }
+                    - { timeStart: '14:30:00', duration: 30 }
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Calendar
+  /calendar/scheduled_events:
+    get:
+      operationId: CalendarService_listScheduledEvents
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ScheduledEvent'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Calendar
+    post:
+      operationId: CalendarService_createScheduledEvent
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduledEvent'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Calendar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScheduledEvent'
+  /calendar/scheduled_events/{scheduledEventId}:
+    get:
+      operationId: CalendarService_getScheduledEventById
+      parameters:
+        - name: scheduledEventId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduledEvent'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Calendar
+components:
+  schemas:
+    Calendar:
+      type: object
+      required:
+        - ownerName
+        - ownerEmail
+        - startOfTheDayHour
+        - endOfTheDayHour
+        - breaks
+        - workingDays
+      properties:
+        ownerName:
+          type: string
+        ownerEmail:
+          type: string
+        startOfTheDayHour:
+          type: string
+          format: time
+        endOfTheDayHour:
+          type: string
+          format: time
+        breaks:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeSlot'
+        workingDays:
+          type: array
+          items:
+            $ref: '#/components/schemas/DayOfWeek'
+    CreateEventType:
+      type: object
+      required:
+        - eventTypeName
+        - description
+        - durationMinutes
+      properties:
+        eventTypeName:
+          type: string
+        description:
+          type: string
+        durationMinutes:
+          type: integer
+          format: int32
+    CreateScheduledEvent:
+      type: object
+      required:
+        - eventTypeId
+        - date
+        - time
+        - subject
+        - notes
+        - guestName
+        - guestEmail
+        - guestTimezone
+      properties:
+        eventTypeId:
+          type: string
+        date:
+          type: string
+          format: date
+        time:
+          type: string
+          format: time
+        subject:
+          type: string
+        notes:
+          type: string
+        guestName:
+          type: string
+        guestEmail:
+          type: string
+        guestTimezone:
+          type: string
+    DayOfWeek:
+      type: string
+      enum:
+        - Monday
+        - Tuesday
+        - Wednesday
+        - Thursday
+        - Friday
+        - Saturday
+        - Sunday
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          format: int32
+        message:
+          type: string
+    EventType:
+      type: object
+      required:
+        - eventTypeId
+        - eventTypeName
+        - description
+        - durationMinutes
+      properties:
+        eventTypeId:
+          type: string
+          readOnly: true
+        eventTypeName:
+          type: string
+        description:
+          type: string
+        durationMinutes:
+          type: integer
+          format: int32
+    ScheduledEvent:
+      type: object
+      required:
+        - scheduledEventId
+        - eventTypeId
+        - utcDateStart
+        - durationMinutes
+        - subject
+        - notes
+        - guestName
+        - guestEmail
+        - guestTimezone
+      properties:
+        scheduledEventId:
+          type: string
+          readOnly: true
+        eventTypeId:
+          type: string
+        utcDateStart:
+          type: string
+          format: date-time
+        durationMinutes:
+          type: integer
+          format: int32
+        subject:
+          type: string
+        notes:
+          type: string
+        guestName:
+          type: string
+        guestEmail:
+          type: string
+        guestTimezone:
+          type: string
+    TimeSlot:
+      type: object
+      required:
+        - timeStart
+        - duration
+      properties:
+        timeStart:
+          type: string
+          format: time
+        duration:
+          type: integer
+          format: int32
+    TimeSlotsOfTheDay:
+      type: object
+      required:
+        - date
+        - timeSlots
+      properties:
+        date:
+          type: string
+          format: date
+        timeSlots:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeSlot'
