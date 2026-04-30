@@ -166,7 +166,13 @@ paths:
   /calendar/scheduled_events:
     get:
       operationId: CalendarService_listScheduledEvents
-      parameters: []
+      parameters:
+        - name: clientTimeZone
+          in: query
+          required: true
+          schema:
+            type: string
+          explode: false
       responses:
         '200':
           description: The request has succeeded.

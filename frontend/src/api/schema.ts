@@ -221,7 +221,9 @@ export interface operations {
     };
     CalendarService_listScheduledEvents: {
         parameters: {
-            query?: never;
+            query: {
+                clientTimeZone: string;
+            };
             header?: never;
             path?: never;
             cookie?: never;

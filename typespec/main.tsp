@@ -84,7 +84,7 @@ interface CalendarService {
 
   @route("scheduled_events")
   @get
-  listScheduledEvents(): ScheduledEvent[] | Error;
+  listScheduledEvents(@query clientTimeZone: string): ScheduledEvent[] | Error;
 
   // --------- Guest --------------
 
