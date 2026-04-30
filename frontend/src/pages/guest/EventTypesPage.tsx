@@ -22,7 +22,7 @@ export default function EventTypesPage() {
   }
 
   return (
-    <Stack gap="lg">
+    <Stack gap="lg" w="66.67%" mx="auto">
       <Title order={2}>Pick an event type</Title>
       <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }} spacing="md">
         {data.map((et) => (

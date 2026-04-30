@@ -74,7 +74,7 @@ export default function EventTypesAdminPage() {
   }
 
   return (
-    <Stack gap="lg">
+    <Stack gap="lg" w="66.67%" mx="auto">
       <Group justify="space-between" align="center">
         <Title order={2}>Event types</Title>
         <Button onClick={open}>New event type</Button>
