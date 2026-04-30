@@ -29,19 +29,17 @@ Mirror the existing conventions in [../src/api/hooks.ts](../src/api/hooks.ts) (s
 
 Schema facts verified in [../src/api/schema.ts](../src/api/schema.ts):
 
-- `POST /calendar/event_types` body is `components["schemas"]["EventType"]` (line 165) — same shape it returns. `eventTypeId` is `readonly` (line 90) but still required by the generated type. The server fills it in. Define a body type that omits it; cast at the call site to satisfy the generated type — pragmatic and keeps the hook signature honest about what callers should pass.
-- `GET /calendar/scheduled_events` requires the `clientTimeZone` query param (line 225) and returns `ScheduledEvent[]` (line 239). Reuse `getClientTimezone()` from [../src/lib/timezone.ts](../src/lib/timezone.ts).
+- `POST /calendar/event_types` request body is `components["schemas"]["CreateEventType"]` (schema.ts line 175), a write-only model with `{ eventTypeName, description, durationMinutes }` — no id. The response is the full `EventType`. Use `CreateEventType` directly for the hook body; no cast or `Omit<>` needed.
+- `GET /calendar/scheduled_events` requires the `clientTimeZone` query param (line 235) and returns `ScheduledEvent[]` (line 249). `ScheduledEvent` now carries `subject` and `notes` (lines 111–112) — both are required by the spec and become the primary display fields on the owner page (see §3). Reuse `getClientTimezone()` from [../src/lib/timezone.ts](../src/lib/timezone.ts).
 
 ```ts
-export type CreateEventTypeBody = Omit<components["schemas"]["EventType"], "eventTypeId">;
+export type CreateEventTypeBody = components["schemas"]["CreateEventType"];
 
 export function useCreateEventType() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: CreateEventTypeBody) => {
-      const { data, error } = await api.POST("/calendar/event_types", {
-        body: body as components["schemas"]["EventType"],
-      });
+      const { data, error } = await api.POST("/calendar/event_types", { body });
       if (error) throw error;
       return data!;
     },
@@ -106,7 +104,7 @@ Modal shell: `Modal` from `@mantine/core` (not `@mantine/modals`), driven by `us
 
 ## 3. ScheduledEventsPage — flat list grouped by date
 
-File: `src/pages/owner/ScheduledEventsPage.tsx`. Reads both `useScheduledEvents()` and `useEventTypes()` so it can join `eventTypeId → eventTypeName` (the `ScheduledEvent` schema has no name, only id + duration — verified at [../src/api/schema.ts](../src/api/schema.ts) lines 96–106).
+File: `src/pages/owner/ScheduledEventsPage.tsx`. Reads both `useScheduledEvents()` and `useEventTypes()` so it can show the event-type name as secondary metadata next to each booking's `subject` (verified shape at [../src/api/schema.ts](../src/api/schema.ts) lines 104–115).
 
 ```tsx
 const { data: events = [], isLoading, error } = useScheduledEvents();
@@ -117,7 +115,15 @@ const typeById = useMemo(
 );
 ```
 
-Grouping: in a `useMemo`, sort by `utcDateStart` ascending, then group by local-date-string using `dayjs(e.utcDateStart).tz(getClientTimezone()).format("YYYY-MM-DD")` from [../src/lib/dayjs.ts](../src/lib/dayjs.ts) — `utc` and `timezone` plugins are already extended there. Render each group as a `Title order={4}` (the local date) followed by a Mantine `Table` with rows: time (`HH:mm`), event-type name (looked up in `typeById`, fallback `<Text c="dimmed">unknown</Text>`), guest name, guest email, duration.
+Grouping: in a `useMemo`, sort by `utcDateStart` ascending, then group by local-date-string using `dayjs(e.utcDateStart).tz(getClientTimezone()).format("YYYY-MM-DD")` from [../src/lib/dayjs.ts](../src/lib/dayjs.ts) — `utc` and `timezone` plugins are already extended there. Render each group as a `Title order={4}` (the local date) followed by a Mantine `Table` with columns:
+
+- **Time** — `dayjs(utcDateStart).tz(...).format("HH:mm")`.
+- **Subject** — `e.subject` in `<Text fw={500}>`. Render `e.notes` underneath as `<Text size="xs" c="dimmed" lineClamp={2}>` so long notes don't wreck the table; full text on hover via `title={e.notes}`.
+- **Event type** — `typeById.get(e.eventTypeId)?.eventTypeName` with a fallback `<Text c="dimmed">unknown</Text>` for stale ids.
+- **Guest** — name + email stacked (`<Stack gap={0}>`).
+- **Duration** — `<Badge variant="light">{e.durationMinutes} min</Badge>`.
+
+`subject` is the primary identifier (it's what the guest typed); the joined event-type name is supporting context (which template was used).
 
 Loading / error / empty states match [../src/pages/guest/EventTypesPage.tsx](../src/pages/guest/EventTypesPage.tsx). Empty state: `<Text c="dimmed">No upcoming bookings.</Text>` — Prism is stateless so this won't show, but a real backend will need it.
 
@@ -143,7 +149,7 @@ No 404 route — React Router silently renders nothing on unknown paths, which m
 
 `npx tsc -b` (or rely on Vite's overlay). Specific things to watch:
 
-- The `as components["schemas"]["EventType"]` cast in `useCreateEventType` — the spec types the body as the full `EventType` because TypeSpec doesn't separate read vs write models for it. The cast is the pragmatic fix; do **not** regenerate the schema or hand-edit it.
+- **Carry-over from STEP 2 — fix before STEP 3 compiles cleanly.** The spec now requires `subject` and `notes` on `CreateScheduledEvent` (schema.ts lines 84–85). [../src/pages/guest/BookEventPage.tsx](../src/pages/guest/BookEventPage.tsx) currently only sends `{ guestName, guestEmail }` — TypeScript will fail there. STEP 3 inherits a clean tree, so add the two `Textarea`/`TextInput` fields to the booking modal form and pass them through `create.mutate(...)` before starting on the owner pages.
 - Mantine v9 `NumberInput` `onChange` yields `string | number`; `form.getInputProps("durationMinutes")` handles the conversion — don't re-implement.
 - `dayjs.tz(...)` requires both `utc` and `timezone` plugins; both are extended in [../src/lib/dayjs.ts](../src/lib/dayjs.ts) — import `dayjs` from there, not from `"dayjs"`.
 
@@ -165,7 +171,7 @@ At `http://localhost:5173/`:
 2. Click **Event types** in the header → `/admin/event-types`: Prism returns a list of event types. Verify cards render with name, description, and a duration badge but **no "Book" button** (this is the admin variant).
 3. Click **New event type** → modal opens. Enter name, description, duration. Submit. Green toast fires; modal closes; the list does **not** grow (Prism is stateless — same caveat called out in [../CLAUDE.md](../CLAUDE.md) under "Mocking via Prism"). Open DevTools → Network → confirm a `POST /api/calendar/event_types` was sent and a 200 came back.
 4. Validation check: try submitting with name <2 chars or duration 0 / 300 — Mantine inline errors fire; no network call.
-5. Click **Upcoming** → `/admin/bookings`: table groups bookings by local date; each row shows time (in the browser's TZ), event-type name (joined from cached `useEventTypes`), guest name, guest email, and duration. The owner-timezone read-only field at the top reflects `Intl.DateTimeFormat().resolvedOptions().timeZone`.
+5. Click **Upcoming** → `/admin/bookings`: table groups bookings by local date; each row shows time (in the browser's TZ), `subject` with `notes` clamped beneath, event-type name (joined from cached `useEventTypes`), guest name + email stacked, and a duration badge. Hover a row's notes to see the full text via the native `title` tooltip. The owner-timezone read-only field at the top reflects `Intl.DateTimeFormat().resolvedOptions().timeZone`.
 6. Open DevTools → Network → navigate **Book → Event types → Upcoming → Book** in sequence. Confirm `event_types` is fetched **once** (cache shared across guest + admin pages via `["event_types"]` key) and `scheduled_events` is fetched **once per admin visit** with the `clientTimeZone` query param attached.
 7. `npm run build && npm run preview` — production build succeeds; preview server renders both new admin pages.
 
