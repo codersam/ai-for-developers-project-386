@@ -31,7 +31,7 @@ export function useAvailableSlots(eventTypeId: string | undefined) {
         { params: { path: { eventTypeId: eventTypeId! }, query: { clientTimeZone } } },
       );
       if (error) throw toError(error);
-      return data?.slotsPerDay ?? [];
+      return data ?? [];
     },
   });
 }
