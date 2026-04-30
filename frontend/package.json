@@ -1,0 +1,48 @@
+{
+  "name": "frontend",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n mock,vite -c yellow,cyan \"npm:mock\" \"vite\"",
+    "vite": "vite",
+    "mock": "prism mock spec/openapi.yaml -p 4010 --dynamic",
+    "gen:api": "openapi-typescript spec/openapi.yaml -o src/api/schema.ts",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@mantine/core": "^9.1.1",
+    "@mantine/dates": "^9.1.1",
+    "@mantine/form": "^9.1.1",
+    "@mantine/hooks": "^9.1.1",
+    "@mantine/notifications": "^9.1.1",
+    "@tanstack/react-query": "^5.100.6",
+    "dayjs": "^1.11.20",
+    "openapi-fetch": "^0.17.0",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "react-router": "^7.14.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@stoplight/prism-cli": "^5.15.10",
+    "@types/node": "^24.12.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "eslint": "^10.2.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.5.0",
+    "openapi-typescript": "^7.13.0",
+    "postcss": "^8.5.12",
+    "postcss-preset-mantine": "^1.18.0",
+    "postcss-simple-vars": "^7.0.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.58.2",
+    "vite": "^8.0.10"
+  }
+}
