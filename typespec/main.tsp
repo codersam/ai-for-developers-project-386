@@ -73,10 +73,6 @@ model TimeSlotsOfTheDay {
   timeSlots: TimeSlot[];
 }
 
-model AvailableTimeSlots {
-  slotsPerDay: TimeSlotsOfTheDay[];
-}
-
 @error
 model Error {
   code: int32;
@@ -107,7 +103,7 @@ interface CalendarService {
   listAvailableSlots(
     @path eventTypeId: string,
     @query clientTimeZone: string,
-  ): AvailableTimeSlots | Error;
+  ): TimeSlotsOfTheDay[] | Error;
 
   @route("scheduled_events")
   @post

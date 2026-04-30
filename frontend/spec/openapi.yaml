@@ -84,77 +84,78 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AvailableTimeSlots'
+                type: array
+                items:
+                  $ref: '#/components/schemas/TimeSlotsOfTheDay'
               example:
-                slotsPerDay:
-                  - date: '2026-05-01'
-                    timeSlots:
-                      - { timeStart: '09:00:00', duration: 30 }
-                      - { timeStart: '09:30:00', duration: 30 }
-                      - { timeStart: '10:00:00', duration: 30 }
-                      - { timeStart: '11:00:00', duration: 30 }
-                      - { timeStart: '14:00:00', duration: 30 }
-                      - { timeStart: '14:30:00', duration: 30 }
-                      - { timeStart: '15:00:00', duration: 30 }
-                      - { timeStart: '16:00:00', duration: 30 }
-                  - date: '2026-05-04'
-                    timeSlots:
-                      - { timeStart: '09:00:00', duration: 30 }
-                      - { timeStart: '09:30:00', duration: 30 }
-                      - { timeStart: '10:30:00', duration: 30 }
-                      - { timeStart: '13:00:00', duration: 30 }
-                      - { timeStart: '13:30:00', duration: 30 }
-                      - { timeStart: '15:00:00', duration: 30 }
-                      - { timeStart: '15:30:00', duration: 30 }
-                  - date: '2026-05-05'
-                    timeSlots:
-                      - { timeStart: '09:30:00', duration: 30 }
-                      - { timeStart: '10:00:00', duration: 30 }
-                      - { timeStart: '10:30:00', duration: 30 }
-                      - { timeStart: '11:00:00', duration: 30 }
-                      - { timeStart: '14:00:00', duration: 30 }
-                      - { timeStart: '15:00:00', duration: 30 }
-                      - { timeStart: '16:30:00', duration: 30 }
-                  - date: '2026-05-06'
-                    timeSlots:
-                      - { timeStart: '09:00:00', duration: 30 }
-                      - { timeStart: '11:00:00', duration: 30 }
-                      - { timeStart: '11:30:00', duration: 30 }
-                      - { timeStart: '13:00:00', duration: 30 }
-                      - { timeStart: '14:30:00', duration: 30 }
-                      - { timeStart: '15:00:00', duration: 30 }
-                  - date: '2026-05-07'
-                    timeSlots:
-                      - { timeStart: '09:00:00', duration: 30 }
-                      - { timeStart: '09:30:00', duration: 30 }
-                      - { timeStart: '10:00:00', duration: 30 }
-                      - { timeStart: '13:30:00', duration: 30 }
-                      - { timeStart: '14:00:00', duration: 30 }
-                      - { timeStart: '14:30:00', duration: 30 }
-                      - { timeStart: '15:00:00', duration: 30 }
-                      - { timeStart: '16:00:00', duration: 30 }
-                  - date: '2026-05-08'
-                    timeSlots:
-                      - { timeStart: '10:00:00', duration: 30 }
-                      - { timeStart: '10:30:00', duration: 30 }
-                      - { timeStart: '11:00:00', duration: 30 }
-                      - { timeStart: '13:00:00', duration: 30 }
-                      - { timeStart: '15:30:00', duration: 30 }
-                  - date: '2026-05-11'
-                    timeSlots:
-                      - { timeStart: '09:00:00', duration: 30 }
-                      - { timeStart: '10:00:00', duration: 30 }
-                      - { timeStart: '11:00:00', duration: 30 }
-                      - { timeStart: '14:00:00', duration: 30 }
-                      - { timeStart: '15:00:00', duration: 30 }
-                      - { timeStart: '16:00:00', duration: 30 }
-                  - date: '2026-05-12'
-                    timeSlots:
-                      - { timeStart: '09:30:00', duration: 30 }
-                      - { timeStart: '10:00:00', duration: 30 }
-                      - { timeStart: '13:00:00', duration: 30 }
-                      - { timeStart: '14:00:00', duration: 30 }
-                      - { timeStart: '14:30:00', duration: 30 }
+                - date: '2026-05-01'
+                  timeSlots:
+                    - { timeStart: '09:00:00', duration: 30 }
+                    - { timeStart: '09:30:00', duration: 30 }
+                    - { timeStart: '10:00:00', duration: 30 }
+                    - { timeStart: '11:00:00', duration: 30 }
+                    - { timeStart: '14:00:00', duration: 30 }
+                    - { timeStart: '14:30:00', duration: 30 }
+                    - { timeStart: '15:00:00', duration: 30 }
+                    - { timeStart: '16:00:00', duration: 30 }
+                - date: '2026-05-04'
+                  timeSlots:
+                    - { timeStart: '09:00:00', duration: 30 }
+                    - { timeStart: '09:30:00', duration: 30 }
+                    - { timeStart: '10:30:00', duration: 30 }
+                    - { timeStart: '13:00:00', duration: 30 }
+                    - { timeStart: '13:30:00', duration: 30 }
+                    - { timeStart: '15:00:00', duration: 30 }
+                    - { timeStart: '15:30:00', duration: 30 }
+                - date: '2026-05-05'
+                  timeSlots:
+                    - { timeStart: '09:30:00', duration: 30 }
+                    - { timeStart: '10:00:00', duration: 30 }
+                    - { timeStart: '10:30:00', duration: 30 }
+                    - { timeStart: '11:00:00', duration: 30 }
+                    - { timeStart: '14:00:00', duration: 30 }
+                    - { timeStart: '15:00:00', duration: 30 }
+                    - { timeStart: '16:30:00', duration: 30 }
+                - date: '2026-05-06'
+                  timeSlots:
+                    - { timeStart: '09:00:00', duration: 30 }
+                    - { timeStart: '11:00:00', duration: 30 }
+                    - { timeStart: '11:30:00', duration: 30 }
+                    - { timeStart: '13:00:00', duration: 30 }
+                    - { timeStart: '14:30:00', duration: 30 }
+                    - { timeStart: '15:00:00', duration: 30 }
+                - date: '2026-05-07'
+                  timeSlots:
+                    - { timeStart: '09:00:00', duration: 30 }
+                    - { timeStart: '09:30:00', duration: 30 }
+                    - { timeStart: '10:00:00', duration: 30 }
+                    - { timeStart: '13:30:00', duration: 30 }
+                    - { timeStart: '14:00:00', duration: 30 }
+                    - { timeStart: '14:30:00', duration: 30 }
+                    - { timeStart: '15:00:00', duration: 30 }
+                    - { timeStart: '16:00:00', duration: 30 }
+                - date: '2026-05-08'
+                  timeSlots:
+                    - { timeStart: '10:00:00', duration: 30 }
+                    - { timeStart: '10:30:00', duration: 30 }
+                    - { timeStart: '11:00:00', duration: 30 }
+                    - { timeStart: '13:00:00', duration: 30 }
+                    - { timeStart: '15:30:00', duration: 30 }
+                - date: '2026-05-11'
+                  timeSlots:
+                    - { timeStart: '09:00:00', duration: 30 }
+                    - { timeStart: '10:00:00', duration: 30 }
+                    - { timeStart: '11:00:00', duration: 30 }
+                    - { timeStart: '14:00:00', duration: 30 }
+                    - { timeStart: '15:00:00', duration: 30 }
+                    - { timeStart: '16:00:00', duration: 30 }
+                - date: '2026-05-12'
+                  timeSlots:
+                    - { timeStart: '09:30:00', duration: 30 }
+                    - { timeStart: '10:00:00', duration: 30 }
+                    - { timeStart: '13:00:00', duration: 30 }
+                    - { timeStart: '14:00:00', duration: 30 }
+                    - { timeStart: '14:30:00', duration: 30 }
         default:
           description: An unexpected error response.
           content:
@@ -216,15 +217,6 @@ paths:
               $ref: '#/components/schemas/CreateScheduledEvent'
 components:
   schemas:
-    AvailableTimeSlots:
-      type: object
-      required:
-        - slotsPerDay
-      properties:
-        slotsPerDay:
-          type: array
-          items:
-            $ref: '#/components/schemas/TimeSlotsOfTheDay'
     Calendar:
       type: object
       required:

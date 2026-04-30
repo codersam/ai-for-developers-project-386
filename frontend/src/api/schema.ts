@@ -56,9 +56,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        AvailableTimeSlots: {
-            slotsPerDay: components["schemas"]["TimeSlotsOfTheDay"][];
-        };
         Calendar: {
             ownerName: string;
             ownerEmail: string;
@@ -149,6 +146,28 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
+                    /**
+                     * @example [
+                     *       {
+                     *         "eventTypeId": "et_intro_30",
+                     *         "eventTypeName": "Intro Call",
+                     *         "description": "A short get-to-know-you chat. Great for first contact.",
+                     *         "durationMinutes": 30
+                     *       },
+                     *       {
+                     *         "eventTypeId": "et_strategy_60",
+                     *         "eventTypeName": "Strategy Session",
+                     *         "description": "Deep-dive working session for project planning and roadmapping.",
+                     *         "durationMinutes": 60
+                     *       },
+                     *       {
+                     *         "eventTypeId": "et_quick_15",
+                     *         "eventTypeName": "Quick Sync",
+                     *         "description": "Fast 15-minute check-in for status updates or quick questions.",
+                     *         "durationMinutes": 15
+                     *       }
+                     *     ]
+                     */
                     "application/json": components["schemas"]["EventType"][];
                 };
             };
@@ -215,7 +234,259 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AvailableTimeSlots"];
+                    /**
+                     * @example [
+                     *       {
+                     *         "date": "2026-05-01",
+                     *         "timeSlots": [
+                     *           {
+                     *             "timeStart": "09:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "09:30:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "10:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "11:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "14:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "14:30:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "15:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "16:00:00",
+                     *             "duration": 30
+                     *           }
+                     *         ]
+                     *       },
+                     *       {
+                     *         "date": "2026-05-04",
+                     *         "timeSlots": [
+                     *           {
+                     *             "timeStart": "09:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "09:30:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "10:30:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "13:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "13:30:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "15:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "15:30:00",
+                     *             "duration": 30
+                     *           }
+                     *         ]
+                     *       },
+                     *       {
+                     *         "date": "2026-05-05",
+                     *         "timeSlots": [
+                     *           {
+                     *             "timeStart": "09:30:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "10:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "10:30:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "11:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "14:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "15:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "16:30:00",
+                     *             "duration": 30
+                     *           }
+                     *         ]
+                     *       },
+                     *       {
+                     *         "date": "2026-05-06",
+                     *         "timeSlots": [
+                     *           {
+                     *             "timeStart": "09:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "11:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "11:30:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "13:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "14:30:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "15:00:00",
+                     *             "duration": 30
+                     *           }
+                     *         ]
+                     *       },
+                     *       {
+                     *         "date": "2026-05-07",
+                     *         "timeSlots": [
+                     *           {
+                     *             "timeStart": "09:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "09:30:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "10:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "13:30:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "14:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "14:30:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "15:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "16:00:00",
+                     *             "duration": 30
+                     *           }
+                     *         ]
+                     *       },
+                     *       {
+                     *         "date": "2026-05-08",
+                     *         "timeSlots": [
+                     *           {
+                     *             "timeStart": "10:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "10:30:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "11:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "13:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "15:30:00",
+                     *             "duration": 30
+                     *           }
+                     *         ]
+                     *       },
+                     *       {
+                     *         "date": "2026-05-11",
+                     *         "timeSlots": [
+                     *           {
+                     *             "timeStart": "09:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "10:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "11:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "14:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "15:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "16:00:00",
+                     *             "duration": 30
+                     *           }
+                     *         ]
+                     *       },
+                     *       {
+                     *         "date": "2026-05-12",
+                     *         "timeSlots": [
+                     *           {
+                     *             "timeStart": "09:30:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "10:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "13:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "14:00:00",
+                     *             "duration": 30
+                     *           },
+                     *           {
+                     *             "timeStart": "14:30:00",
+                     *             "duration": 30
+                     *           }
+                     *         ]
+                     *       }
+                     *     ]
+                     */
+                    "application/json": components["schemas"]["TimeSlotsOfTheDay"][];
                 };
             };
             /** @description An unexpected error response. */
