@@ -37,6 +37,12 @@ model EventType {
   durationMinutes: int32;
 }
 
+model CreateEventType {
+  eventTypeName: string;
+  description: string;
+  durationMinutes: int32;
+}
+
 model ScheduledEvent {
   @visibility(Lifecycle.Read)
   scheduledEventId: string;
@@ -44,6 +50,8 @@ model ScheduledEvent {
   eventTypeId: string;
   utcDateStart: utcDateTime;
   durationMinutes: int32;
+  subject: string;
+  notes: string;
   guestName: string;
   guestEmail: string;
   guestTimezone: string;
@@ -53,6 +61,8 @@ model CreateScheduledEvent {
   eventTypeId: string;
   date: plainDate;
   time: plainTime;
+  subject: string;
+  notes: string;
   guestName: string;
   guestEmail: string;
   guestTimezone: string;
@@ -80,7 +90,7 @@ interface CalendarService {
 
   @route("event_types")
   @post
-  createEventType(@body body: EventType): EventType | Error;
+  createEventType(@body body: CreateEventType): EventType | Error;
 
   @route("scheduled_events")
   @get

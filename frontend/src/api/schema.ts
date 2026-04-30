@@ -69,12 +69,20 @@ export interface components {
             breaks: components["schemas"]["TimeSlot"][];
             workingDays: components["schemas"]["DayOfWeek"][];
         };
+        CreateEventType: {
+            eventTypeName: string;
+            description: string;
+            /** Format: int32 */
+            durationMinutes: number;
+        };
         CreateScheduledEvent: {
             eventTypeId: string;
             /** Format: date */
             date: string;
             /** Format: time */
             time: string;
+            subject: string;
+            notes: string;
             guestName: string;
             guestEmail: string;
             guestTimezone: string;
@@ -100,6 +108,8 @@ export interface components {
             utcDateStart: string;
             /** Format: int32 */
             durationMinutes: number;
+            subject: string;
+            notes: string;
             guestName: string;
             guestEmail: string;
             guestTimezone: string;
@@ -162,7 +172,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["EventType"];
+                "application/json": components["schemas"]["CreateEventType"];
             };
         };
         responses: {

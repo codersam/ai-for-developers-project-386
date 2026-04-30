@@ -29,7 +29,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/EventType'
+              $ref: '#/components/schemas/CreateEventType'
     get:
       operationId: CalendarService_listEventTypes
       parameters: []
@@ -253,12 +253,28 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/DayOfWeek'
+    CreateEventType:
+      type: object
+      required:
+        - eventTypeName
+        - description
+        - durationMinutes
+      properties:
+        eventTypeName:
+          type: string
+        description:
+          type: string
+        durationMinutes:
+          type: integer
+          format: int32
     CreateScheduledEvent:
       type: object
       required:
         - eventTypeId
         - date
         - time
+        - subject
+        - notes
         - guestName
         - guestEmail
         - guestTimezone
@@ -271,6 +287,10 @@ components:
         time:
           type: string
           format: time
+        subject:
+          type: string
+        notes:
+          type: string
         guestName:
           type: string
         guestEmail:
@@ -323,6 +343,8 @@ components:
         - eventTypeId
         - utcDateStart
         - durationMinutes
+        - subject
+        - notes
         - guestName
         - guestEmail
         - guestTimezone
@@ -338,6 +360,10 @@ components:
         durationMinutes:
           type: integer
           format: int32
+        subject:
+          type: string
+        notes:
+          type: string
         guestName:
           type: string
         guestEmail:
