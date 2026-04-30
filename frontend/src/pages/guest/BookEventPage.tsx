@@ -20,7 +20,7 @@ import { notifications } from "@mantine/notifications";
 import {
   useAvailableSlots,
   useCreateScheduledEvent,
-  useEventType,
+  useEventTypes,
 } from "../../api/hooks";
 import { SlotPicker, type SelectedSlot } from "../../components/SlotPicker";
 import { isWithinBookingWindow } from "../../lib/bookingWindow";
@@ -30,7 +30,8 @@ export default function BookEventPage() {
   const { eventTypeId } = useParams();
   const navigate = useNavigate();
 
-  const eventTypeQuery = useEventType(eventTypeId);
+  const eventTypesQuery = useEventTypes();
+  const eventType = eventTypesQuery.data?.find((et) => et.eventTypeId === eventTypeId);
   const slotsQuery = useAvailableSlots(eventTypeId);
 
   const [selectedSlot, setSelectedSlot] = useState<SelectedSlot | null>(null);
@@ -52,7 +53,7 @@ export default function BookEventPage() {
     [slotsQuery.data],
   );
 
-  if (eventTypeQuery.isLoading || slotsQuery.isLoading) {
+  if (eventTypesQuery.isLoading || slotsQuery.isLoading) {
     return (
       <Center mih={240}>
         <Loader />
@@ -60,15 +61,14 @@ export default function BookEventPage() {
     );
   }
 
-  if (eventTypeQuery.error || slotsQuery.error) {
+  if (eventTypesQuery.error || slotsQuery.error) {
     return (
       <Alert color="red" title="Couldn't load this event type">
-        {(eventTypeQuery.error ?? slotsQuery.error)?.message}
+        {(eventTypesQuery.error ?? slotsQuery.error)?.message}
       </Alert>
     );
   }
 
-  const eventType = eventTypeQuery.data;
   if (!eventType) {
     return <Alert color="red" title="Event type not found">No event type matches this id.</Alert>;
   }

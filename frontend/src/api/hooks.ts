@@ -20,19 +20,6 @@ export function useEventTypes() {
   });
 }
 
-export function useEventType(eventTypeId: string | undefined) {
-  return useQuery({
-    queryKey: ["event_types"],
-    queryFn: async () => {
-      const { data, error } = await api.GET("/calendar/event_types");
-      if (error) throw toError(error);
-      return data;
-    },
-    enabled: !!eventTypeId,
-    select: (list) => list?.find((et) => et.eventTypeId === eventTypeId),
-  });
-}
-
 export function useAvailableSlots(eventTypeId: string | undefined) {
   const clientTimeZone = getClientTimezone();
   return useQuery({
