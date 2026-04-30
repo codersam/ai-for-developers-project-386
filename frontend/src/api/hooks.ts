@@ -59,3 +59,33 @@ export function useCreateScheduledEvent() {
     },
   });
 }
+
+export type CreateEventTypeBody = components["schemas"]["CreateEventType"];
+
+export function useCreateEventType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: CreateEventTypeBody) => {
+      const { data, error } = await api.POST("/calendar/event_types", { body });
+      if (error) throw error;
+      return data!;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["event_types"] });
+    },
+  });
+}
+
+export function useScheduledEvents() {
+  const clientTimeZone = getClientTimezone();
+  return useQuery({
+    queryKey: ["scheduled_events", clientTimeZone],
+    queryFn: async () => {
+      const { data, error } = await api.GET("/calendar/scheduled_events", {
+        params: { query: { clientTimeZone } },
+      });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}

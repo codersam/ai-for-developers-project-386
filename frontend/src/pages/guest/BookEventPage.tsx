@@ -10,6 +10,7 @@ import {
   Modal,
   Stack,
   Text,
+  Textarea,
   TextInput,
   Title,
 } from "@mantine/core";
@@ -38,10 +39,11 @@ export default function BookEventPage() {
   const create = useCreateScheduledEvent();
 
   const form = useForm({
-    initialValues: { guestName: "", guestEmail: "" },
+    initialValues: { guestName: "", guestEmail: "", subject: "", notes: "" },
     validate: {
       guestName: (v) => (v.trim().length < 2 ? "Required" : null),
       guestEmail: (v) => (/^\S+@\S+\.\S+$/.test(v) ? null : "Invalid email"),
+      subject: (v) => (v.trim().length < 2 ? "Required" : null),
     },
   });
 
@@ -137,6 +139,18 @@ export default function BookEventPage() {
                   label="Email"
                   placeholder="you@example.com"
                   {...form.getInputProps("guestEmail")}
+                />
+                <TextInput
+                  label="What's this meeting about?"
+                  placeholder="Quick chat, project review…"
+                  {...form.getInputProps("subject")}
+                />
+                <Textarea
+                  label="Notes (optional)"
+                  placeholder="Anything you'd like to share ahead of time"
+                  autosize
+                  minRows={2}
+                  {...form.getInputProps("notes")}
                 />
                 <Group justify="flex-end" mt="sm">
                   <Button variant="default" onClick={close}>
