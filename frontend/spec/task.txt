@@ -1,0 +1,18 @@
+The project has two conventional roles: calendar owner and guests. There is no registration or authorization process. The calendar owner is a predefined profile. This profile is used by default in the admin panel. Guests book slots without creating an account or logging in.
+
+The calendar owner can:
+
+Create event types. For each event type, specify the ID, title, description, and duration in minutes.
+View the upcoming appointments page, which displays bookings for all event types in a single list.
+Guest:
+
+Can view the booking types page, where the title, description, and duration are available.
+Selects an event type, opens the calendar, and selects an available slot within the next 14 days.
+Creates a booking for the selected slot.
+Availability rule:
+
+Two bookings cannot be created for the same time, even for different event types.
+Default booking window:
+
+Available slots are generated for 14 days, starting from the current date.
+A guest can only sign up for a free slot from this window.
