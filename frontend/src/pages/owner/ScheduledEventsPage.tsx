@@ -114,6 +114,9 @@ export default function ScheduledEventsPage() {
                             <Text size="xs" c="dimmed">
                               {e.guestEmail}
                             </Text>
+                            <Text size="xs" c="dimmed">
+                              {e.guestTimezone}
+                            </Text>
                           </Stack>
                         </Table.Td>
                         <Table.Td>
