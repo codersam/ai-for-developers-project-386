@@ -97,7 +97,7 @@ interface CalendarService {
   listAvailableSlots(
     @path eventTypeId: string,
     @query clientTimeZone: string,
-  ): AvailableTimeSlots[] | Error;
+  ): AvailableTimeSlots | Error;
 
   @route("scheduled_events")
   @post
