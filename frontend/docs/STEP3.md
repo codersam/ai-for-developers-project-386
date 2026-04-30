@@ -9,11 +9,12 @@ STEP 1 stood up the Vite + Mantine shell and the guest event-types list. STEP 2 
 
 The header nav links for both are already wired in [../src/App.tsx](../src/App.tsx) (lines 15–20), but they currently route nowhere. The `src/pages/owner/` directory exists but is empty. STEP 3 fills both pages, adds the two missing API hooks, and registers the routes.
 
-Stop after step 7 — that is the third runnable checkpoint. After this, the brief in [../spec/task.txt](../spec/task.txt) is fully exercisable end-to-end against Prism. See [../CLAUDE.md](../CLAUDE.md) for the strategic plan.
+Stop after step 8 — that is the third runnable checkpoint. After this, the brief in [../spec/task.txt](../spec/task.txt) is fully exercisable end-to-end against Prism. See [../CLAUDE.md](../CLAUDE.md) for the strategic plan.
 
 ## Files to be modified / created
 
 Modified:
+- [../src/pages/guest/BookEventPage.tsx](../src/pages/guest/BookEventPage.tsx) — STEP 2 carry-over: collect `subject` and `notes` (newly required by `CreateScheduledEvent`).
 - [../src/api/hooks.ts](../src/api/hooks.ts) — add `useCreateEventType` and `useScheduledEvents`.
 - [../src/routes/index.tsx](../src/routes/index.tsx) — add the two `/admin/*` routes.
 
@@ -23,14 +24,50 @@ Created:
 
 No changes to [../src/App.tsx](../src/App.tsx) (nav already present), no new dependencies, no schema regeneration needed.
 
-## 1. Extend `src/api/hooks.ts` with two more hooks
+## 1. STEP 2 carry-over — wire `subject` and `notes` into the booking form
+
+Do this first; `npx tsc -b` will fail until it's done. The spec change made `subject` and `notes` required on `CreateScheduledEvent` ([../src/api/schema.ts](../src/api/schema.ts) lines 84–85), but [../src/pages/guest/BookEventPage.tsx](../src/pages/guest/BookEventPage.tsx) lines 41–46 only collects `{ guestName, guestEmail }`. Two surgical changes — add the fields to `useForm`, render them in the modal — and the existing spread `...values` in `create.mutate` ([../src/pages/guest/BookEventPage.tsx](../src/pages/guest/BookEventPage.tsx) line 88) carries them through unchanged.
+
+Validate `subject` like `guestName` (≥ 2 chars). Leave `notes` unvalidated: the OpenAPI `required` array means the field must be present in the JSON, not non-empty — an empty string is a valid payload, so a `Textarea` defaulting to `""` satisfies the contract.
+
+```tsx
+const form = useForm({
+  initialValues: { guestName: "", guestEmail: "", subject: "", notes: "" },
+  validate: {
+    guestName: (v) => (v.trim().length < 2 ? "Required" : null),
+    guestEmail: (v) => (/^\S+@\S+\.\S+$/.test(v) ? null : "Invalid email"),
+    subject: (v) => (v.trim().length < 2 ? "Required" : null),
+  },
+});
+```
+
+In the modal body (currently [../src/pages/guest/BookEventPage.tsx](../src/pages/guest/BookEventPage.tsx) lines 129–150), add the two fields after the existing email `TextInput`:
+
+```tsx
+<TextInput
+  label="What's this meeting about?"
+  placeholder="Quick chat, project review…"
+  {...form.getInputProps("subject")}
+/>
+<Textarea
+  label="Notes (optional)"
+  placeholder="Anything you'd like to share ahead of time"
+  autosize
+  minRows={2}
+  {...form.getInputProps("notes")}
+/>
+```
+
+Add `Textarea` to the existing `@mantine/core` import at the top of the file. No other changes — the mutation, navigation, and confirmation page all stay as-is.
+
+## 2. Extend `src/api/hooks.ts` with two more hooks
 
 Mirror the existing conventions in [../src/api/hooks.ts](../src/api/hooks.ts) (see `useCreateScheduledEvent` lines 48–61 for the mutation shape, `useAvailableSlots` lines 30–44 for the timezone-keyed query shape).
 
 Schema facts verified in [../src/api/schema.ts](../src/api/schema.ts):
 
 - `POST /calendar/event_types` request body is `components["schemas"]["CreateEventType"]` (schema.ts line 175), a write-only model with `{ eventTypeName, description, durationMinutes }` — no id. The response is the full `EventType`. Use `CreateEventType` directly for the hook body; no cast or `Omit<>` needed.
-- `GET /calendar/scheduled_events` requires the `clientTimeZone` query param (line 235) and returns `ScheduledEvent[]` (line 249). `ScheduledEvent` now carries `subject` and `notes` (lines 111–112) — both are required by the spec and become the primary display fields on the owner page (see §3). Reuse `getClientTimezone()` from [../src/lib/timezone.ts](../src/lib/timezone.ts).
+- `GET /calendar/scheduled_events` requires the `clientTimeZone` query param (line 235) and returns `ScheduledEvent[]` (line 249). `ScheduledEvent` now carries `subject` and `notes` (lines 111–112) — both are required by the spec and become the primary display fields on the owner page (see §4). Reuse `getClientTimezone()` from [../src/lib/timezone.ts](../src/lib/timezone.ts).
 
 ```ts
 export type CreateEventTypeBody = components["schemas"]["CreateEventType"];
@@ -66,7 +103,7 @@ export function useScheduledEvents() {
 
 The query key `["scheduled_events", ...]` matches the invalidation already wired in `useCreateScheduledEvent` ([../src/api/hooks.ts](../src/api/hooks.ts) line 57) — no change needed there.
 
-## 2. EventTypesAdminPage — list + create modal
+## 3. EventTypesAdminPage — list + create modal
 
 File: `src/pages/owner/EventTypesAdminPage.tsx`. Reuses `useEventTypes()` from STEP 1 for the list.
 
@@ -102,7 +139,7 @@ const handleSubmit = form.onSubmit((values) => {
 
 Modal shell: `Modal` from `@mantine/core` (not `@mantine/modals`), driven by `useDisclosure`. Fields: `TextInput` (name), `Textarea` (description), `NumberInput` (durationMinutes, min=1, max=240, step=15). Footer: `Cancel` + `Create` buttons, `loading={create.isPending}` on the submit button.
 
-## 3. ScheduledEventsPage — flat list grouped by date
+## 4. ScheduledEventsPage — flat list grouped by date
 
 File: `src/pages/owner/ScheduledEventsPage.tsx`. Reads both `useScheduledEvents()` and `useEventTypes()` so it can show the event-type name as secondary metadata next to each booking's `subject` (verified shape at [../src/api/schema.ts](../src/api/schema.ts) lines 104–115).
 
@@ -129,7 +166,7 @@ Loading / error / empty states match [../src/pages/guest/EventTypesPage.tsx](../
 
 Owner timezone is the same as the browser's TZ (no separate owner profile in the brief). Surface it once at the top via the same `<TextInput readOnly>` pattern used in [../src/pages/guest/BookEventPage.tsx](../src/pages/guest/BookEventPage.tsx) lines 114–119, so the user understands which TZ the times are rendered in.
 
-## 4. Wire the routes
+## 5. Wire the routes
 
 Edit [../src/routes/index.tsx](../src/routes/index.tsx):
 
@@ -145,21 +182,20 @@ Edit [../src/routes/index.tsx](../src/routes/index.tsx):
 
 No 404 route — React Router silently renders nothing on unknown paths, which matches what the guest routes do today.
 
-## 5. Smoke-test the type plumbing
+## 6. Smoke-test the type plumbing
 
 `npx tsc -b` (or rely on Vite's overlay). Specific things to watch:
 
-- **Carry-over from STEP 2 — fix before STEP 3 compiles cleanly.** The spec now requires `subject` and `notes` on `CreateScheduledEvent` (schema.ts lines 84–85). [../src/pages/guest/BookEventPage.tsx](../src/pages/guest/BookEventPage.tsx) currently only sends `{ guestName, guestEmail }` — TypeScript will fail there. STEP 3 inherits a clean tree, so add the two `Textarea`/`TextInput` fields to the booking modal form and pass them through `create.mutate(...)` before starting on the owner pages.
 - Mantine v9 `NumberInput` `onChange` yields `string | number`; `form.getInputProps("durationMinutes")` handles the conversion — don't re-implement.
 - `dayjs.tz(...)` requires both `utc` and `timezone` plugins; both are extended in [../src/lib/dayjs.ts](../src/lib/dayjs.ts) — import `dayjs` from there, not from `"dayjs"`.
 
-## 6. Polish (carry-over from CLAUDE.md step 7)
+## 7. Polish (carry-over from CLAUDE.md step 7)
 
 - Loading / error / empty states already covered above.
 - A short "Owner" subtitle banner is unnecessary — header nav already differentiates the section.
 - Basic responsive check: admin pages render fine at narrow widths because they use `Stack` + a single `Table`. No grid breakpoint logic needed.
 
-## 7. Verification — runnable demo
+## 8. Verification — runnable demo
 
 ```bash
 cd frontend && npm run dev
@@ -167,7 +203,7 @@ cd frontend && npm run dev
 
 At `http://localhost:5173/`:
 
-1. Guest regression check: event types list still loads; booking flow still works end-to-end (STEP 1 + STEP 2 unchanged).
+1. Guest regression check: event types list still loads. Open the booking modal — the form now shows `Subject` (required) and `Notes (optional)` fields below name + email. Submit with a subject like "Project kickoff" and a short note; toast fires, navigation lands on `/book/:id/confirmed`. Open DevTools → Network → confirm the `POST /api/calendar/scheduled_events` request body includes both `subject` and `notes`.
 2. Click **Event types** in the header → `/admin/event-types`: Prism returns a list of event types. Verify cards render with name, description, and a duration badge but **no "Book" button** (this is the admin variant).
 3. Click **New event type** → modal opens. Enter name, description, duration. Submit. Green toast fires; modal closes; the list does **not** grow (Prism is stateless — same caveat called out in [../CLAUDE.md](../CLAUDE.md) under "Mocking via Prism"). Open DevTools → Network → confirm a `POST /api/calendar/event_types` was sent and a 200 came back.
 4. Validation check: try submitting with name <2 chars or duration 0 / 300 — Mantine inline errors fire; no network call.
