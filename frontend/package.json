@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently -k -n mock,vite -c yellow,cyan \"npm:mock\" \"vite\"",
     "vite": "vite",
-    "mock": "prism mock spec/openapi.yaml -p 4010 --dynamic",
+    "mock": "prism mock spec/openapi.yaml -p 4010",
     "gen:api": "openapi-typescript spec/openapi.yaml -o src/api/schema.ts",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
