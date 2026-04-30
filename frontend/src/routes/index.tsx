@@ -10,7 +10,10 @@ export default function AppRoutes() {
     <Routes>
       <Route path="/" element={<EventTypesPage />} />
       <Route path="/book/:eventTypeId" element={<BookEventPage />} />
-      <Route path="/book/:eventTypeId/confirmed" element={<BookingConfirmedPage />} />
+      <Route
+        path="/book/:eventTypeId/confirmed/:scheduledEventId"
+        element={<BookingConfirmedPage />}
+      />
       <Route path="/admin/event-types" element={<EventTypesAdminPage />} />
       <Route path="/admin/bookings" element={<ScheduledEventsPage />} />
     </Routes>

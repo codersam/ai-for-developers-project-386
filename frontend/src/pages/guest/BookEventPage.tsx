@@ -93,9 +93,7 @@ export default function BookEventPage() {
         onSuccess: (scheduled) => {
           notifications.show({ color: "green", title: "Booked", message: "See you then!" });
           close();
-          navigate(`/book/${eventTypeId}/confirmed`, {
-            state: { eventType, ...selectedSlot, scheduled },
-          });
+          navigate(`/book/${eventTypeId}/confirmed/${scheduled.scheduledEventId}`);
         },
         onError: (e) =>
           notifications.show({ color: "red", title: "Couldn't book", message: e.message }),

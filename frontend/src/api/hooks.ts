@@ -70,15 +70,27 @@ export function useCreateEventType() {
 }
 
 export function useScheduledEvents() {
-  const clientTimeZone = getClientTimezone();
   return useQuery({
-    queryKey: ["scheduled_events", clientTimeZone],
+    queryKey: ["scheduled_events"],
     queryFn: async () => {
-      const { data, error } = await api.GET("/calendar/scheduled_events", {
-        params: { query: { clientTimeZone } },
-      });
+      const { data, error } = await api.GET("/calendar/scheduled_events");
       if (error) throw toError(error);
       return data ?? [];
+    },
+  });
+}
+
+export function useScheduledEvent(scheduledEventId: string | undefined) {
+  return useQuery({
+    enabled: !!scheduledEventId,
+    queryKey: ["scheduled_events", scheduledEventId],
+    queryFn: async () => {
+      const { data, error } = await api.GET(
+        "/calendar/scheduled_events/{scheduledEventId}",
+        { params: { path: { scheduledEventId: scheduledEventId! } } },
+      );
+      if (error) throw toError(error);
+      return data!;
     },
   });
 }

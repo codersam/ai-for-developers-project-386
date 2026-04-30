@@ -90,7 +90,11 @@ interface CalendarService {
 
   @route("scheduled_events")
   @get
-  listScheduledEvents(@query clientTimeZone: string): ScheduledEvent[] | Error;
+  listScheduledEvents(): ScheduledEvent[] | Error;
+
+  @route("scheduled_events/{scheduledEventId}")
+  @get
+  getScheduledEventById(@path scheduledEventId: string): ScheduledEvent | Error;
 
   // --------- Guest --------------
 

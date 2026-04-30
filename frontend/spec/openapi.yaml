@@ -167,13 +167,7 @@ paths:
   /calendar/scheduled_events:
     get:
       operationId: CalendarService_listScheduledEvents
-      parameters:
-        - name: clientTimeZone
-          in: query
-          required: true
-          schema:
-            type: string
-          explode: false
+      parameters: []
       responses:
         '200':
           description: The request has succeeded.
@@ -215,6 +209,30 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateScheduledEvent'
+  /calendar/scheduled_events/{scheduledEventId}:
+    get:
+      operationId: CalendarService_getScheduledEventById
+      parameters:
+        - name: scheduledEventId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduledEvent'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Calendar
 components:
   schemas:
     Calendar:

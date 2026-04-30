@@ -52,6 +52,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/calendar/scheduled_events/{scheduledEventId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["CalendarService_getScheduledEventById"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -502,9 +518,7 @@ export interface operations {
     };
     CalendarService_listScheduledEvents: {
         parameters: {
-            query: {
-                clientTimeZone: string;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -543,6 +557,37 @@ export interface operations {
                 "application/json": components["schemas"]["CreateScheduledEvent"];
             };
         };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledEvent"];
+                };
+            };
+            /** @description An unexpected error response. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Error"];
+                };
+            };
+        };
+    };
+    CalendarService_getScheduledEventById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                scheduledEventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description The request has succeeded. */
             200: {
