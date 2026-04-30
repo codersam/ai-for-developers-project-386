@@ -63,7 +63,7 @@ export default function BookEventPage() {
   if (eventTypeQuery.error || slotsQuery.error) {
     return (
       <Alert color="red" title="Couldn't load this event type">
-        {String(eventTypeQuery.error ?? slotsQuery.error)}
+        {(eventTypeQuery.error ?? slotsQuery.error)?.message}
       </Alert>
     );
   }
@@ -98,7 +98,7 @@ export default function BookEventPage() {
           });
         },
         onError: (e) =>
-          notifications.show({ color: "red", title: "Couldn't book", message: String(e) }),
+          notifications.show({ color: "red", title: "Couldn't book", message: e.message }),
       },
     );
   });

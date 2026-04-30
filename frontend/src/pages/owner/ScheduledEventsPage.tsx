@@ -50,7 +50,7 @@ export default function ScheduledEventsPage() {
   if (error) {
     return (
       <Alert color="red" title="Couldn't load bookings">
-        {String(error)}
+        {error.message}
       </Alert>
     );
   }

@@ -14,7 +14,7 @@ export default function EventTypesPage() {
   }
 
   if (error) {
-    return <Alert color="red" title="Couldn't load event types">{String(error)}</Alert>;
+    return <Alert color="red" title="Couldn't load event types">{error.message}</Alert>;
   }
 
   if (!data || data.length === 0) {

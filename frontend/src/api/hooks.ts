@@ -3,12 +3,18 @@ import { api } from "./client";
 import { getClientTimezone } from "../lib/timezone";
 import type { components } from "./schema";
 
+type ApiError = components["schemas"]["Error"];
+
+function toError(error: ApiError): Error {
+  return new Error(`[${error.code}] ${error.message}`);
+}
+
 export function useEventTypes() {
   return useQuery({
     queryKey: ["event_types"],
     queryFn: async () => {
       const { data, error } = await api.GET("/calendar/event_types");
-      if (error) throw error;
+      if (error) throw toError(error);
       return data;
     },
   });
@@ -19,7 +25,7 @@ export function useEventType(eventTypeId: string | undefined) {
     queryKey: ["event_types"],
     queryFn: async () => {
       const { data, error } = await api.GET("/calendar/event_types");
-      if (error) throw error;
+      if (error) throw toError(error);
       return data;
     },
     enabled: !!eventTypeId,
@@ -37,7 +43,7 @@ export function useAvailableSlots(eventTypeId: string | undefined) {
         "/calendar/event_types/{eventTypeId}/available_slots",
         { params: { path: { eventTypeId: eventTypeId! }, query: { clientTimeZone } } },
       );
-      if (error) throw error;
+      if (error) throw toError(error);
       return data?.slotsPerDay ?? [];
     },
   });
@@ -50,7 +56,7 @@ export function useCreateScheduledEvent() {
   return useMutation({
     mutationFn: async (body: CreateScheduledEventBody) => {
       const { data, error } = await api.POST("/calendar/scheduled_events", { body });
-      if (error) throw error;
+      if (error) throw toError(error);
       return data!;
     },
     onSuccess: (_d, vars) => {
@@ -67,7 +73,7 @@ export function useCreateEventType() {
   return useMutation({
     mutationFn: async (body: CreateEventTypeBody) => {
       const { data, error } = await api.POST("/calendar/event_types", { body });
-      if (error) throw error;
+      if (error) throw toError(error);
       return data!;
     },
     onSuccess: () => {
@@ -84,7 +90,7 @@ export function useScheduledEvents() {
       const { data, error } = await api.GET("/calendar/scheduled_events", {
         params: { query: { clientTimeZone } },
       });
-      if (error) throw error;
+      if (error) throw toError(error);
       return data ?? [];
     },
   });

@@ -52,7 +52,7 @@ export default function EventTypesAdminPage() {
         notifications.show({
           color: "red",
           title: "Couldn't create",
-          message: String(e),
+          message: e.message,
         }),
     });
   });
@@ -68,7 +68,7 @@ export default function EventTypesAdminPage() {
   if (error) {
     return (
       <Alert color="red" title="Couldn't load event types">
-        {String(error)}
+        {error.message}
       </Alert>
     );
   }
