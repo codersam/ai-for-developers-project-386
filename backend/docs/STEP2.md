@@ -367,3 +367,19 @@ Phase 3 starts at §11.6 of CLAUDE.md (`SlotMath` + unit tests) and ends at §11
 2. **Mappers narrowed to one.** §11.4 says "Entities, repositories, mappers" with "MapStruct mappers" plural. Only `EventTypeMapper` ships in Phase 2; `ScheduledEventMapper` and `TimeSlotMapper` are deferred to Phase 3 because they have no consumer this phase, and `TimeSlotMapper`'s string-vs-`LocalTime` conversion is best designed alongside the slot algorithm.
 
 3. **Integration tests deferred.** §11.4–5 implies tests in this phase. Phase 2 has only two trivial endpoints, both fully exercised by the Step 7 verification curls. Building `AbstractIntegrationTest` now means rewriting it once `Clock` and `ApiExceptionHandler` exist in Phase 3 — better to invest once.
+
+---
+
+## Notes from implementation (post-run)
+
+These were observed while running the verification steps and are worth carrying into Phase 3.
+
+1. **`POST /api/calendar/scheduled_events` with `{}` returns `400`, not `501`** — contrary to the §7.1 verify block on lines 288–290. Spring's `@Valid @RequestBody CreateScheduledEvent` triggers Bean Validation *before* the controller method runs, and every field on `CreateScheduledEvent` is `@NotNull`, so an empty body fails validation and never reaches the `notImplemented()` stub. The stub is correctly wired and **does** return `501` when the body deserializes successfully (e.g. all required fields present with placeholder values) — verified by overriding behavior, not by curl-with-empty-body. The Phase 3 `ApiExceptionHandler` will reshape this `400` into the typed `Error` body. Exit criterion #7 is still satisfied: the four overrides exist, compile, and return `501` from inside the method body. Update the verify block in §7.1 to either send a fully-valid body or accept `400` as the expected status for the empty-body case.
+
+2. **`slugify` re-trims trailing `-` after the 32-char cap.** If the substring slice lands inside a `-` cluster the result would carry a trailing dash (e.g. `"a---b---...-"` → `"a---b---...-"` truncated to 32 chars could end on `-`), which then fails the `^et_[a-z0-9-]+_[a-z0-9]{6}$` regex visually-cleanly even though it technically matches. The implementation runs `replaceAll("-+$", "")` once more after `substring(0, 32)` for cosmetic reasons. Steps 1–5 of the plan's `slugify` recipe are otherwise applied as-written.
+
+3. **Postgres container is re-created on every `bootRun`** because `application.yml` sets `spring.docker.compose.lifecycle-management: start-and-stop`. The named volume `calendar-pgdata` declared in `compose.yaml` preserves rows across these restarts, so exit criterion #5 (persistence across `bootRun` restarts) holds in practice. Worth keeping in mind for Phase 3 integration tests, which use Testcontainers and bypass this Compose lifecycle entirely.
+
+4. **MapStruct generation confirmed.** `build/generated/sources/annotationProcessor/java/main/com/hexlet/calendar/mapping/EventTypeMapperImpl.java` exists after `compileJava`, mapping `entity.id ↔ dto.eventTypeId` and `entity.name ↔ dto.eventTypeName` exactly as the plan specifies. The risk on lines 333–334 (silent no-op) did not materialize.
+
+5. **Hibernate `validate` accepted `Short[]` + `@JdbcTypeCode(SqlTypes.ARRAY)` against `SMALLINT[]`** without needing `@Column(columnDefinition = "smallint[]")` for the `expected: array` error path — but `columnDefinition` is set anyway because the plan calls for it, and it costs nothing. The `JSONB` round-trip for `breaks` is empty (`'[]'`) on the seed row; non-empty round-trip remains untested until Phase 3 seeds a real break.
