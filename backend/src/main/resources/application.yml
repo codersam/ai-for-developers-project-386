@@ -1,0 +1,31 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: calendar-backend
+  datasource:
+    url: jdbc:postgresql://localhost:5432/calendar
+    username: calendar
+    password: calendar
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  threads:
+    virtual:
+      enabled: true
+  docker:
+    compose:
+      enabled: true
+      lifecycle-management: start-and-stop
+
+owner:
+  timezone: Europe/Berlin

@@ -195,6 +195,7 @@ CREATE TABLE scheduled_events (
   id               TEXT PRIMARY KEY,
   event_type_id    TEXT NOT NULL REFERENCES event_types(id),
   utc_start        TIMESTAMPTZ NOT NULL,
+  utc_end          TIMESTAMPTZ NOT NULL,
   duration_minutes INTEGER NOT NULL CHECK (duration_minutes > 0),
   subject          TEXT NOT NULL,
   notes            TEXT NOT NULL,
@@ -203,13 +204,10 @@ CREATE TABLE scheduled_events (
   guest_timezone   TEXT NOT NULL,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-  -- Materialized half-open range used for the collision exclusion constraint.
-  utc_range        TSTZRANGE GENERATED ALWAYS AS (
-    tstzrange(utc_start, utc_start + (duration_minutes || ' minutes')::interval, '[)')
-  ) STORED,
+  CONSTRAINT scheduled_events_end_after_start CHECK (utc_end > utc_start),
 
   CONSTRAINT scheduled_events_no_overlap
-    EXCLUDE USING GIST (utc_range WITH &&)
+    EXCLUDE USING GIST (tstzrange(utc_start, utc_end, '[)') WITH &&)
 );
 
 CREATE INDEX scheduled_events_utc_start_idx ON scheduled_events (utc_start);
@@ -229,8 +227,8 @@ CREATE TABLE calendar_config (
 
 Key points:
 - `'[)'` half-open range — back-to-back slots (09:00–09:30 and 09:30–10:00) don't overlap; even a one-minute overlap does.
-- Generated `utc_range` column eliminates drift between `(utc_start, duration_minutes)` and the range used by the constraint.
-- `EXCLUDE USING GIST … WITH &&` enforces "no two bookings overlap" atomically at commit, regardless of `event_type_id` — exactly the spec's rule. App-level pre-check still runs for nice 409 errors.
+- `utc_end` is stored explicitly (not GENERATED). Postgres requires generated-column expressions to be IMMUTABLE, but `timestamptz + interval` is STABLE (DST math depends on session timezone). The application sets `utc_end = utc_start + Duration.ofMinutes(duration_minutes)` before insert. The CHECK constraint guards against `utc_end <= utc_start`; field consistency between `utc_end` and `duration_minutes` is the service's responsibility.
+- `EXCLUDE USING GIST … WITH &&` enforces "no two bookings overlap" atomically at commit, regardless of `event_type_id` — exactly the spec's rule. The range expression `tstzrange(utc_start, utc_end, '[)')` uses only IMMUTABLE functions, which is what the constraint's GiST index requires. App-level pre-check still runs for nice 409 errors.
 
 ### `V2__seed_owner_calendar.sql`
 
@@ -251,14 +249,14 @@ VALUES
 ## 3. JPA entities
 
 - `EventTypeEntity` — `@Id String id`, `@Column(name = "name") String name` (avoid the `eventTypeName` ↔ DB-column gap), `description`, `Integer durationMinutes`, `OffsetDateTime createdAt`. ID generated in service as `et_<slug>_<random6>` so the values stay readable, like the spec example.
-- `ScheduledEventEntity` — `@Id String id` (`se_` + 22-char NanoID), `String eventTypeId` (or `@ManyToOne` to `EventTypeEntity`), `OffsetDateTime utcStart`, `Integer durationMinutes`, plus the spec's string fields. The DB-generated `utc_range` column is mapped as `@Column(insertable = false, updatable = false, columnDefinition = "tstzrange") String utcRange` and ignored by app code.
+- `ScheduledEventEntity` — `@Id String id` (`se_` + 22-char NanoID), `String eventTypeId` (or `@ManyToOne` to `EventTypeEntity`), `OffsetDateTime utcStart`, `OffsetDateTime utcEnd`, `Integer durationMinutes`, plus the spec's string fields. `utcEnd` is a regular writable column; the service sets it from `utcStart + Duration.ofMinutes(durationMinutes)` immediately before persist.
 - `CalendarConfigEntity` — single row (id=1). Fields: `String ownerName`, `String ownerEmail`, `ZoneId ownerTimezone` (via `AttributeConverter<ZoneId, String>`), `LocalTime startOfDay`, `LocalTime endOfDay`, `Short[] workingDays` with `@JdbcTypeCode(SqlTypes.ARRAY)`, `List<TimeSlot> breaks` with `@JdbcTypeCode(SqlTypes.JSON)`.
 
 Repositories:
 - `EventTypeRepository extends JpaRepository<EventTypeEntity, String>`
 - `ScheduledEventRepository extends JpaRepository<ScheduledEventEntity, String>`
-  - Custom: `List<ScheduledEventEntity> findOverlapping(Instant windowStart, Instant windowEnd)` — native query: `SELECT … WHERE utc_range && tstzrange(:start, :end, '[)')`.
-  - Custom: `boolean existsOverlapping(Instant slotStart, Integer durationMinutes)` for the pre-check.
+  - Custom: `List<ScheduledEventEntity> findOverlapping(Instant windowStart, Instant windowEnd)` — native query: `SELECT … WHERE tstzrange(utc_start, utc_end, '[)') && tstzrange(:start, :end, '[)')`.
+  - Custom: `boolean existsOverlapping(Instant slotStart, Instant slotEnd)` — native query against the same range expression — for the pre-check.
 - `CalendarConfigRepository extends JpaRepository<CalendarConfigEntity, Short>`
 
 ---
@@ -302,12 +300,12 @@ Single `@Transactional` method; default `READ_COMMITTED` (the exclusion constrai
 2. Find `EventTypeEntity` by `eventTypeId` → `404 NotFoundException` if missing.
 3. Load `CalendarConfigEntity` (id=1).
 4. Parse `guestTimezone` to `ZoneId` → `400` on `DateTimeException`.
-5. Compute UTC start: `LocalDateTime.of(date, time).atZone(guestZone).toInstant()`.
+5. Compute UTC start: `LocalDateTime.of(date, time).atZone(guestZone).toInstant()`. Compute UTC end: `utcStart.plus(Duration.ofMinutes(eventType.durationMinutes))`.
 6. Validate window in the **guest's** zone: `today_in_guestZone <= date <= today_in_guestZone + 13` → `400`.
 7. Validate not in the past → `400`.
 8. **Validate slot alignment** by calling `AvailabilityService.listSlots(eventTypeId, guestZone)` and asserting the requested `(date, time)` is among the returned slots. This single call enforces working day, business hours, breaks, and step alignment in one place.
-9. Pre-check collision: `scheduledEventRepository.existsOverlapping(utcStart, eventType.durationMinutes)` → `409 ConflictException` "Slot is no longer available" if hit.
-10. Build entity, generate `se_…` id, save.
+9. Pre-check collision: `scheduledEventRepository.existsOverlapping(utcStart, utcEnd)` → `409 ConflictException` "Slot is no longer available" if hit.
+10. Build entity (with `utcStart`, `utcEnd`, and `durationMinutes` all set), generate `se_…` id, save.
 11. If the unique exclusion constraint trips anyway (race between 9 and 10), `DataIntegrityViolationException` whose root cause is Postgres `23P01` is translated to the same 409 by `ApiExceptionHandler`.
 12. Map saved entity → `ScheduledEventDto`; `utcDateStart` is the entity's `utcStart` rendered as ISO-8601 with `Z`.
 
