@@ -6,6 +6,7 @@ import com.hexlet.calendar.generated.model.CreateScheduledEvent;
 import com.hexlet.calendar.generated.model.EventType;
 import com.hexlet.calendar.generated.model.ScheduledEvent;
 import com.hexlet.calendar.generated.model.TimeSlotsOfTheDay;
+import com.hexlet.calendar.service.AvailabilityService;
 import com.hexlet.calendar.service.EventTypeService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,9 +18,11 @@ import java.util.List;
 public class CalendarController implements CalendarApi {
 
     private final EventTypeService eventTypeService;
+    private final AvailabilityService availabilityService;
 
-    public CalendarController(EventTypeService eventTypeService) {
+    public CalendarController(EventTypeService eventTypeService, AvailabilityService availabilityService) {
         this.eventTypeService = eventTypeService;
+        this.availabilityService = availabilityService;
     }
 
     @Override
@@ -49,7 +52,7 @@ public class CalendarController implements CalendarApi {
 
     @Override
     public ResponseEntity<List<TimeSlotsOfTheDay>> calendarServiceListAvailableSlots(String eventTypeId, String clientTimeZone) {
-        return notImplemented();
+        return ResponseEntity.ok(availabilityService.listAvailableSlots(eventTypeId, clientTimeZone));
     }
 
     private static <T> ResponseEntity<T> notImplemented() {
