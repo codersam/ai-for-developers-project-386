@@ -15,7 +15,7 @@ public class FixedClockTestConfig {
 
     @Bean
     @Primary
-    public Clock clock() {
+    public Clock testClock() {
         return Clock.fixed(FIXED_NOW, ZoneOffset.UTC);
     }
 }

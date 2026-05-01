@@ -39,8 +39,8 @@ CREATE TABLE calendar_config (
   owner_name     TEXT       NOT NULL,
   owner_email    TEXT       NOT NULL,
   owner_timezone TEXT       NOT NULL,
-  start_of_day   TIME       NOT NULL,
-  end_of_day     TIME       NOT NULL,
+  start_of_day   TEXT       NOT NULL CHECK (start_of_day ~ '^[0-2][0-9]:[0-5][0-9](:[0-5][0-9])?$'),
+  end_of_day     TEXT       NOT NULL CHECK (end_of_day   ~ '^[0-2][0-9]:[0-5][0-9](:[0-5][0-9])?$'),
   working_days   SMALLINT[] NOT NULL,
   breaks         JSONB      NOT NULL
 );

@@ -1,5 +1,6 @@
 package com.hexlet.calendar.domain.model;
 
+import com.hexlet.calendar.domain.converter.LocalTimeStringConverter;
 import com.hexlet.calendar.domain.converter.ZoneIdConverter;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
@@ -30,9 +31,11 @@ public class CalendarConfigEntity {
     @Column(name = "owner_timezone")
     private ZoneId ownerTimezone;
 
+    @Convert(converter = LocalTimeStringConverter.class)
     @Column(name = "start_of_day")
     private LocalTime startOfDay;
 
+    @Convert(converter = LocalTimeStringConverter.class)
     @Column(name = "end_of_day")
     private LocalTime endOfDay;
 
