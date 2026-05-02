@@ -11,10 +11,10 @@ import com.hexlet.calendar.generated.model.TimeSlotsOfTheDay;
 import com.hexlet.calendar.time.SlotMath;
 import com.hexlet.calendar.time.SlotMath.BreakWindow;
 import com.hexlet.calendar.time.SlotMath.UtcRange;
-import org.springframework.http.HttpStatus;
+import com.hexlet.calendar.web.error.BadRequestException;
+import com.hexlet.calendar.web.error.NotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Clock;
 import java.time.DateTimeException;
@@ -57,17 +57,14 @@ public class AvailabilityService {
         try {
             clientZone = ZoneId.of(clientTimeZoneRaw);
         } catch (DateTimeException ex) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Invalid timezone: " + clientTimeZoneRaw);
+            throw new BadRequestException("Invalid timezone: " + clientTimeZoneRaw);
         }
 
         EventTypeEntity eventType = eventTypeRepo.findById(eventTypeId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
-                        "Event type not found: " + eventTypeId));
+                .orElseThrow(() -> new NotFoundException("Event type not found: " + eventTypeId));
 
         CalendarConfigEntity config = calendarConfigRepo.findById((short) 1)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                        "Owner calendar not configured"));
+                .orElseThrow(() -> new IllegalStateException("Owner calendar not configured"));
 
         LocalDate clientToday = LocalDate.now(clock.withZone(clientZone));
         Instant windowStart = clientToday.atStartOfDay(clientZone).toInstant();

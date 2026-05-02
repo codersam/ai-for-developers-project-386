@@ -6,10 +6,10 @@ import com.hexlet.calendar.domain.repo.CalendarConfigRepository;
 import com.hexlet.calendar.domain.repo.EventTypeRepository;
 import com.hexlet.calendar.domain.repo.ScheduledEventRepository;
 import com.hexlet.calendar.generated.model.TimeSlotsOfTheDay;
+import com.hexlet.calendar.web.error.BadRequestException;
+import com.hexlet.calendar.web.error.NotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -84,17 +84,13 @@ class AvailabilityServiceTest {
         when(eventTypeRepo.findById("missing")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.listAvailableSlots("missing", "Europe/Berlin"))
-                .isInstanceOf(ResponseStatusException.class)
-                .extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
-                .isEqualTo(HttpStatus.NOT_FOUND);
+                .isInstanceOf(NotFoundException.class);
     }
 
     @Test
     void invalidClientTimeZone_throws400() {
         assertThatThrownBy(() -> service.listAvailableSlots(EVENT_TYPE_ID, "Mars/Phobos"))
-                .isInstanceOf(ResponseStatusException.class)
-                .extracting(ex -> ((ResponseStatusException) ex).getStatusCode())
-                .isEqualTo(HttpStatus.BAD_REQUEST);
+                .isInstanceOf(BadRequestException.class);
 
         verify(eventTypeRepo, never()).findById(any());
         verify(calendarConfigRepo, never()).findById(any());
