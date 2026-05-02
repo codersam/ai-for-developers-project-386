@@ -1,4 +1,9 @@
 spring:
+  datasource:
+    url: jdbc:tc:postgresql:16-alpine:///calendar
+    username: calendar
+    password: calendar
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
   docker:
     compose:
       enabled: false

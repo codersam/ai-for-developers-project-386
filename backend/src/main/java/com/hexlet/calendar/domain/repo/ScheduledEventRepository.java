@@ -18,4 +18,15 @@ public interface ScheduledEventRepository extends JpaRepository<ScheduledEventEn
             @Param("windowStart") Instant windowStart,
             @Param("windowEnd") Instant windowEnd
     );
+
+    @Query(value = """
+        SELECT EXISTS (
+            SELECT 1 FROM scheduled_events
+            WHERE tstzrange(utc_start, utc_end, '[)') && tstzrange(:slotStart, :slotEnd, '[)')
+        )
+        """, nativeQuery = true)
+    boolean existsOverlapping(
+            @Param("slotStart") Instant slotStart,
+            @Param("slotEnd") Instant slotEnd
+    );
 }
