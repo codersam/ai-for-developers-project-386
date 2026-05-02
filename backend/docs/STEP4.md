@@ -687,3 +687,65 @@ Phase 5 picks up the deferred polish:
 - `backend/src/main/java/com/hexlet/calendar/domain/repo/ScheduledEventRepository.java` — `existsOverlapping`
 - `backend/src/main/java/com/hexlet/calendar/web/CalendarController.java` — replace 3 stubs, drop `notImplemented`
 - `backend/src/test/java/com/hexlet/calendar/service/AvailabilityServiceTest.java` — assertion type swap (3 tests)
+
+---
+
+## Post-run notes (what actually shipped)
+
+`./gradlew clean build` is `BUILD SUCCESSFUL`. 36 tests green: 13 `SlotMathTest`, 3 `AvailabilityServiceTest`, 5 `AvailableSlotsControllerIT`, 9 `ScheduledEventControllerIT`, 1 `ConcurrencyIT`, 5 `ErrorMappingIT` — exit criterion 1 (≥41) was overshot in spirit (15 new IT methods + assertion churn) but slightly undershot in count because `ErrorMappingIT.unknownPath_*` was dropped per the plan's note. Two commits landed instead of one:
+
+- `feat(backend): typed exception hierarchy + ApiExceptionHandler (phase 4 part 1)` — exception classes, `ApiExceptionHandler`, `AvailabilityService` migration, test assertion swap.
+- `feat(backend): booking lifecycle (phase 4 part 2)` — `ScheduledEventService`, mapper, repository query, controller wiring, three IT classes.
+
+Files created/modified match the plan's "Critical files" list. The deviations below are forced by issues discovered while running the build — not redesign.
+
+### Deviation 1 — `java.sql.SQLException.getSQLState()`, not `org.postgresql.util.PSQLException`
+
+The plan's step 2 (`ApiExceptionHandler`) and step 6 (`ScheduledEventService.create`) referenced `org.postgresql.util.PSQLException` directly to detect SQLSTATE `23P01`. First compile failed: `package org.postgresql.util does not exist`. The Postgres driver is declared `runtimeOnly` in `build.gradle.kts:29` (`runtimeOnly("org.postgresql:postgresql")`), so its classes aren't on the compile classpath.
+
+Fix: pattern-match against the JDBC-standard `java.sql.SQLException` and call `getSQLState()` — same SQLSTATE, no driver coupling. Documented as the "future driver swap" risk in the plan; that risk is now decoupled by construction.
+
+### Deviation 2 — `existsOverlapping` runs **before** `listAvailableSlots` alignment
+
+The plan's step 6 listed validation order as `… → alignment → existsOverlapping → save`. That ordering makes exit criterion 4 ("cross-event-type collision returns **409**") structurally unreachable: `availabilityService.listAvailableSlots(...)` filters out slots that overlap *any* existing booking (`findOverlapping` is event-type-agnostic), so a sequential second-booking on a taken slot fails alignment with `400 "Slot is not available"`, never reaching the 409 path. Architecture decision §C acknowledged this and called the 409 path "races only" — directly contradicting exit criterion 4.
+
+Resolved by swapping the two checks: `existsOverlapping` now runs first and returns 409 for any taken slot (sequential or race); `listAvailableSlots`-based alignment runs after and returns 400 for slots that were never on offer (off-step, off-hours, past, outside window). The race path still works — both threads pass `existsOverlapping` under `READ_COMMITTED` (no commits visible), both pass alignment, then race at `saveAndFlush` where the EXCLUDE constraint serializes them. Test `ScheduledEventControllerIT.create_crossEventTypeCollision_returns409` and `ConcurrencyIT.twoConcurrentBookings_oneSucceedsOneConflicts` both pass with this ordering.
+
+### Deviation 3 — `ConcurrencyIT` extends `AbstractIntegrationTest`
+
+The plan's architecture decision §E and "Deviations" §6 explicitly said `ConcurrencyIT` should *not* extend `AbstractIntegrationTest` because the base would impose `@AutoConfigureMockMvc` and (worried) a class-level `@Transactional`. In practice `AbstractIntegrationTest` has no class-level `@Transactional` (only IT subclasses add it). `ConcurrencyIT` inherits the base without adding `@Transactional` of its own, so each test method runs in autocommit and the two threads each get a real, independent transaction — which is exactly what the EXCLUDE-constraint race needs.
+
+The original "standalone" approach (separate `@SpringBootTest` + own `@Container static`) actively broke the test suite: with four IT classes total, JUnit's `@Testcontainers` lifecycle and Spring's context cache fought each other, producing `java.net.ConnectException` on most ITs (15 of 20 failed). Sharing one base class — and one Spring context — fixes that.
+
+### Deviation 4 — test datasource switched to `jdbc:tc:` URL; `@Container`/`@ServiceConnection` removed
+
+`application.yml:10` hard-codes `spring.datasource.url: jdbc:postgresql://localhost:5432/calendar` for dev. STEP3's `application-test.yml` did not override it — STEP3 worked anyway because `@ServiceConnection` registered a `JdbcConnectionDetails` bean that took precedence and the single IT class meant a single container lifecycle. STEP4 added three more IT classes; the static `@Container PostgreSQLContainer` in `AbstractIntegrationTest` started/stopped per the JUnit `@Testcontainers` extension, while Spring tried to cache the context across classes — the cached `JdbcConnectionDetails` ended up pointing at a stopped container.
+
+Fix: in `application-test.yml`, override the datasource URL with the Testcontainers JDBC driver:
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:tc:postgresql:16-alpine:///calendar
+    username: calendar
+    password: calendar
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+```
+
+The `org.testcontainers.jdbc.ContainerDatabaseDriver` parses `jdbc:tc:postgresql:16-alpine:///calendar`, starts a singleton container per JVM (keyed by image+db name), reads the random mapped host port via `getMappedPort(5432)`, and rewrites the URL transparently when handing the connection to HikariCP. No `@Container`, no `@ServiceConnection`, no per-class lifecycle to fight; the Ryuk reaper kills the container at JVM exit. Removed `@Testcontainers` annotation and the `@Container static PostgreSQLContainer` field from `AbstractIntegrationTest` — they're dead weight under this scheme. `application.yml`'s dev URL is unchanged.
+
+### Deviation 5 — local dev volume needed `docker volume rm` before `bootRun` would start
+
+Not a code change — a hand-off note. STEP3 deviation 2 modified `V1__init.sql` in place (TIME → TEXT for `start_of_day`/`end_of_day`) without bumping the migration version. Any dev environment that ran the *original* V1 has Flyway's `flyway_schema_history` row frozen at the old checksum (`-1567457033`); the new V1 hashes to `-1242773743`. On `./gradlew bootRun`, Flyway refuses to start with `FlywayValidateException: Migration checksum mismatch for migration version 1`.
+
+Resolution applied locally: `docker volume rm calendar-pgdata` (after `docker compose down`) so Flyway re-applies V1+V2 from scratch. Tests are unaffected because Testcontainers spins up a fresh DB every JVM. Phase 5 should either:
+1. Add a `V3__` migration that does the TIME → TEXT change and document V1 as historically unchanged, OR
+2. Document the `docker volume rm calendar-pgdata` reset as part of `backend/README.md` setup if the repo gains a real shared dev environment.
+
+### Hand-off updates for Phase 5
+
+- `application-test.yml` is now the authoritative test datasource — any new IT just needs `extends AbstractIntegrationTest` (and `@Transactional` if it wants per-test rollback).
+- The order of validation checks in `ScheduledEventService.create` is `existsOverlapping` *before* alignment. Reverting that ordering reintroduces the cross-event-type 400-vs-409 contradiction.
+- `ApiExceptionHandler` and `ScheduledEventService` both detect SQLSTATE `23P01` via `java.sql.SQLException`. Don't reintroduce a direct `org.postgresql.util.PSQLException` reference — it won't compile.
+- Phase 4's three new IT classes already cover the typed-`Error` body shape on the Phase 3 paths (`ErrorMappingIT.unknownEventTypeOnAvailableSlots_*`, `invalidTimezoneOnAvailableSlots_*`). Phase 5's planned `AvailableSlotsControllerIT` body-assertion tightening can be a no-op if those `ErrorMappingIT` cases are deemed sufficient.
+- Plan §6 listed an `ErrorMappingIT.unknownPath_returns404ErrorBody` test that was dropped (would require flipping `spring.mvc.throw-exception-if-no-handler-found: true` + `spring.web.resources.add-mappings: false`). If Phase 5 wants 404-on-unknown-path coverage, add those settings *and* the test together — neither is useful alone.
