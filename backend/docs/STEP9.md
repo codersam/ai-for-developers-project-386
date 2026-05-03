@@ -67,19 +67,15 @@ Three temptations rejected up front:
 Three stages, same frontend + backend builders as `Dockerfile.render` (copy verbatim — same JAR). Only the runtime stage changes:
 
 - **Base:** `eclipse-temurin:21-jre-alpine` (matches `Dockerfile.render`'s runtime base, keeps the JRE layer cached).
-- **Postgres install:** `apk add --no-cache postgresql16 postgresql16-contrib su-exec`.
-  - `postgresql16` provides `initdb`, `postgres`, `pg_isready`, `pg_ctl`, `createdb`.
-  - `postgresql16-contrib` provides the `btree_gist` extension that [V1__init.sql:1](../src/main/resources/db/migration/V1__init.sql) requires.
-  - `su-exec` is reserved for the privilege drop in case we ever need root setup steps; primary path uses `USER app` directly.
+- **Postgres install:** `apk add --no-cache postgresql16 postgresql16-contrib` — Alpine 3.23 ships PostgreSQL 16.13. `postgresql16` provides `initdb`, `postgres`, `pg_isready`, `pg_ctl`, `createdb`, all in `/usr/bin` (already on `$PATH`, so no `PATH` override is needed). `postgresql16-contrib` provides the `btree_gist` extension that [V1__init.sql:1](../src/main/resources/db/migration/V1__init.sql) requires. (The earlier draft of this plan also installed `su-exec`; dropped during implementation because the entrypoint never has to drop privileges — both processes run as the single `app` user from `USER app`.)
 - **User + PGDATA:** create `app:app`, `mkdir -p /var/lib/postgresql/data && chown app:app …` and `chmod 700` (Postgres refuses to start if PGDATA permissions are wider than 700).
 - **Env baked into the image:**
   - `PGDATA=/var/lib/postgresql/data`
-  - `PATH=/usr/libexec/postgresql16:$PATH`
   - `SPRING_DOCKER_COMPOSE_ENABLED=false` — suppresses Spring Boot's Compose auto-configuration ([application.yml:23-26](../src/main/resources/application.yml)). There's no Docker daemon inside the container.
   - `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75 -XX:+UseContainerSupport` — carried over from [compose.prod.yaml](../../compose.prod.yaml) and STEP8.
 - **Volume:** `VOLUME /var/lib/postgresql/data`.
 - **Copy:** the JAR to `/app/app.jar` (same path as `Dockerfile.render`) and the entrypoint to `/usr/local/bin/standalone-entrypoint.sh`.
-- **Networking:** `EXPOSE 8080`. Healthcheck reuses the shell-form pattern from `Dockerfile.render` (the renamed original): `wget -qO- http://localhost:${PORT:-8080}/api/actuator/health`.
+- **Networking:** `EXPOSE 8080`. Healthcheck reuses the shell-form pattern from `Dockerfile.render` (the renamed original) but bumps `--start-period` from `30s` to `60s` because the container has to boot Postgres *and* the JVM before the actuator endpoint answers: `wget -qO- http://localhost:${PORT:-8080}/api/actuator/health`.
 - **Run:** `USER app`, `ENTRYPOINT ["/usr/local/bin/standalone-entrypoint.sh"]`.
 
 ### `docker/standalone-entrypoint.sh` (new, executable)
@@ -87,13 +83,13 @@ Three stages, same frontend + backend builders as `Dockerfile.render` (copy verb
 POSIX `sh` (Alpine has no bash by default). Five responsibilities, in order:
 
 1. **First-run init.** If `$PGDATA/PG_VERSION` is absent:
-   - `initdb -D "$PGDATA" --username=calendar --auth-local=trust --auth-host=trust --encoding=UTF8`.
-   - Overwrite `pg_hba.conf` with only `host all all 127.0.0.1/32 trust` and `local all all trust`. Restricting auth to loopback is non-negotiable: the JVM and Postgres share the network namespace, and we don't want any external 5432 access.
+   - `initdb -D "$PGDATA" --username=calendar --auth-local=trust --auth-host=trust --encoding=UTF8 --locale=C`. The `--locale=C` was added during implementation because Alpine ships only the C locale by default — without it, `initdb` warns and picks an arbitrary fallback.
+   - Overwrite `pg_hba.conf` with three lines: `local all all trust`, `host all all 127.0.0.1/32 trust`, and `host all all ::1/128 trust` (the IPv6 loopback line was added belt-and-suspenders for runtimes where the container has IPv6 enabled). Restricting auth to loopback is non-negotiable: the JVM and Postgres share the network namespace, and we don't want any external 5432 access.
    - Overwrite `postgresql.conf` to `listen_addresses='127.0.0.1'`, `unix_socket_directories='/tmp'`.
-   - Briefly `pg_ctl start`, `createdb -U calendar calendar`, `pg_ctl stop -m fast`.
+   - Briefly `pg_ctl -o "-k /tmp" -w start`, `createdb -h /tmp -U calendar calendar`, `pg_ctl -m fast -w stop`. The `-k /tmp` is required because the daemon's default socket directory (`/run/postgresql`) doesn't exist in this image and isn't writable by the `app` user.
    - Idempotent: skipped on subsequent boots because `$PGDATA` is volume-backed.
-2. **Background Postgres.** `postgres -D "$PGDATA" &`; capture `$!` as `PG_PID`.
-3. **Signal hygiene.** `trap 'pg_ctl stop -D "$PGDATA" -m fast; wait $PG_PID' INT TERM EXIT`. Without this, killing the container leaves Postgres mid-write; with `-m fast`, it gets a clean shutdown.
+2. **Background Postgres.** `postgres -D "$PGDATA" -k /tmp &`; capture `$!` as `PG_PID`.
+3. **Signal hygiene.** A `shutdown()` function bound via `trap shutdown TERM INT EXIT`. The function first sends `SIGTERM` to the JVM and `wait`s on it, then `pg_ctl -m fast`s Postgres. The plan's earlier draft suggested an inline trap that stopped Postgres directly; the function form was chosen during implementation so the JVM gets a chance to finish flushing before Postgres goes away, and so the same logic handles both signal-driven and natural-exit shutdowns.
 4. **Wait for ready.** `until pg_isready -h 127.0.0.1 -U calendar -d calendar -q; do sleep 0.5; done`. HikariCP would retry anyway, but waiting here surfaces Postgres failures *before* Spring's bootstrap and produces clean log ordering.
 5. **Hand to JVM.** `java -jar /app/app.jar &` then `wait` on the JVM PID. **Do not `exec`** — `exec` replaces the shell, the trap never fires, and Postgres is orphaned at shutdown.
 
@@ -126,7 +122,7 @@ First boot logs, in order: `initdb` output → "database system is ready to acce
 
 ## Verification
 
-1. **Build:** `docker build -t calendar:standalone .` — final image inspects to ~250 MB (eclipse-temurin alpine ~95 MB + postgres16 + contrib ~80 MB + JAR + frontend `dist/`).
+1. **Build:** `docker build -t calendar:standalone .` — measured final image: **298 MB** on first build (eclipse-temurin alpine + postgres16 + contrib + JAR + frontend `dist/`). A bit larger than the ~250 MB in the original estimate; the `postgresql16-contrib` package alone is ~80 MB and pulls in Perl/Python deps via its JIT extras even when the base `postgresql16-contrib-jit` package is not installed.
 2. **First-boot run:** `docker run --rm -p 8080:8080 -e PORT=8080 calendar:standalone`. Confirm log ordering above.
 3. **Health:** `curl http://localhost:8080/api/actuator/health` → `{"status":"UP"}`.
 4. **Functional smoke** (mirrors [STEP8.md §Verification](STEP8.md)):
@@ -142,6 +138,25 @@ First boot logs, in order: `initdb` output → "database system is ready to acce
     - `./gradlew bootRun` (dev) — unaffected, doesn't touch any Dockerfile.
     - `docker compose -f compose.prod.yaml up` — succeeds with the new `dockerfile: Dockerfile.render` line; produces a byte-identical image to before.
     - Render web service deploy — green only after the dashboard's Dockerfile Path is updated to `./Dockerfile.render`. Confirm by triggering a manual deploy and checking the build log.
+
+## Implementation notes (post-build)
+
+Captured from the actual build + smoke run, so a future reader can compare against expected behavior:
+
+- **Image size:** 298 MB. Larger than the planned ~250 MB; not a concern for the target use cases but worth flagging if size becomes a constraint (could be trimmed by switching to the smaller `postgres:16-alpine` image as the base and layering JDK on top, at the cost of losing the cached JRE layer shared with `Dockerfile.render`).
+- **Postgres version:** 16.13 (whatever Alpine 3.23.4 ships). Major version match with `postgres:16-alpine` used in [compose.prod.yaml](../../compose.prod.yaml) and STEP8 — minor versions may differ.
+- **Cold start:** `Started CalendarApplication in 9.113 seconds` on first boot, with Postgres `initdb` adding ~1 s before the JVM starts. Subsequent boots skip `initdb`. The 60-second `start-period` in `HEALTHCHECK` is comfortably above this.
+- **Clean-shutdown signature.** A `docker stop` produces this Postgres log sequence; if you ever see `database system was interrupted` on the next start, the trap didn't fire:
+  ```
+  LOG:  shutting down
+  LOG:  checkpoint starting: shutdown immediate
+  LOG:  checkpoint complete: …
+  LOG:  database system is shut down
+  waiting for server to shut down.... done
+  server stopped
+  ```
+- **Persistence verified.** `docker run -v calendar-data:/var/lib/postgresql/data` → create event type → `docker stop && docker rm` → relaunch with same volume → event type still present. No `initdb` log lines on the second boot, as expected.
+- **One Hibernate log oddity:** at startup, Hibernate logs `Database driver: undefined/unknown` and several `undefined/unknown` pool fields. This is cosmetic — Hibernate 6 + HikariCP no longer exposes those metadata fields the way Hibernate's connection pooling logger expects. Functional behavior is unaffected.
 
 ## Caveats
 
