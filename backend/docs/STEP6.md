@@ -1,6 +1,6 @@
-# Phase 6 — Single deployable image (Tactical Plan, draft)
+# Phase 6 — Single deployable image (Tactical Plan)
 
-Companion to [backend/CLAUDE.md](../CLAUDE.md). Out of scope for CLAUDE.md as written — this is a forward-looking phase. Phase 5 ([STEP5.md](STEP5.md)) is the precondition for the healthcheck (uses `/api/actuator/health`); the frontend vite-proxy PR is **not** a precondition (production serves the React app from Spring's static resources, dev-mode vite proxy is irrelevant outside development).
+Companion to [backend/CLAUDE.md](../CLAUDE.md). Out of scope for CLAUDE.md as written — this is a forward-looking phase. Phase 5 ([STEP5.md](STEP5.md)) is in: actuator health is live at `/api/actuator/health`, `backend/README.md` exists, build is `BUILD SUCCESSFUL` with 44 tests. The frontend vite-proxy PR is **not** a precondition — production serves the React app from Spring's static resources; dev-mode vite proxy is irrelevant outside development.
 
 ## Context
 
@@ -10,25 +10,26 @@ After Phase 5 the backend is feature-complete and shippable in isolation, but de
 
 Produce one Docker image that contains the Spring Boot fat JAR with the built React `dist/` baked in as static resources. A multi-stage Dockerfile builds frontend (Node), then backend (Gradle, with the frontend dist copied into `src/main/resources/static/` before `bootJar`), then ships a minimal JRE runtime image. SPA client-side routes resolve to `index.html` via a Spring forward; API calls hit controllers under `/api`; `/api/actuator/health` powers the Docker `HEALTHCHECK`.
 
-## Open decisions (resolve before implementation)
+## Resolved decisions
 
-1. **Frontend build orchestration** — plain Dockerfile multi-stage (Docker is the only place the two builds are joined; local `./gradlew bootJar` does not bundle frontend), vs. Gradle node plugin (`com.github.node-gradle.node`) so `./gradlew bootJar` produces an image-ready JAR locally too. *Recommend (a) plain Dockerfile* — keeps the Java build free of npm dependencies and matches the existing local dev workflow (`./gradlew bootRun` + `npm run dev` in two terminals).
-2. **SPA client-side routing** — React Router paths like `/booking/abc` need to serve `index.html` rather than 404. Options: HashRouter (zero backend work, ugly URLs), or a Spring controller forwarding unmatched non-`/api` non-static paths to `/index.html`. *Recommend the Spring forward* — clean URLs, ~10 lines of Java, the standard Spring Boot SPA pattern.
-3. **Runtime base image** — `eclipse-temurin:21-jre-alpine` (~70 MB final), `eclipse-temurin:21-jre` Debian (~150 MB, glibc, fewer edge cases), or distroless `gcr.io/distroless/java21-debian12` (~110 MB, no shell, harder to debug). *Recommend alpine* — best size/familiarity tradeoff for this project; revisit distroless only if a security review demands it.
+1. **Frontend build orchestration** → plain multi-stage Dockerfile. Docker is the only place the two builds are joined; local `./gradlew bootJar` does not bundle frontend. Keeps the Java build free of npm dependencies and matches the existing local dev workflow (`./gradlew bootRun` + `npm run dev` in two terminals). Gradle node plugin rejected — extra build complexity for a workflow nobody asked for.
+2. **SPA client-side routing** → Spring forwarding controller. Clean URLs, ~10 lines of Java, the standard Spring Boot SPA pattern. HashRouter rejected — ugly URLs and the frontend uses `BrowserRouter`.
+3. **Runtime base image** → `eclipse-temurin:21-jre-alpine`. Best size/familiarity tradeoff (~70 MB base). Distroless reconsidered only if a future security review demands it.
 
 ## Exit criteria (all must hold)
 
 1. `docker build -t calendar-app .` from repo root succeeds. Final image size ≤120 MB (alpine + JRE + JAR).
 2. `docker run --rm -p 8080:8080 -e SPRING_DATASOURCE_URL=… -e SPRING_DATASOURCE_USERNAME=… -e SPRING_DATASOURCE_PASSWORD=… calendar-app` boots successfully and Flyway applies V1+V2 against the configured Postgres.
 3. `curl http://localhost:8080/` returns the React `index.html` (HTTP 200, `Content-Type: text/html`).
-4. `curl http://localhost:8080/booking/anything` returns `index.html` (forwarded by the SPA fallback) — not a 404.
+4. `curl http://localhost:8080/admin/event-types` and `curl http://localhost:8080/book/et_intro-call_abc123` each return `index.html` (forwarded by the SPA fallback) — not 404. (These match the actual frontend routes in `frontend/src/routes/index.tsx`.)
 5. `curl http://localhost:8080/assets/<some-vite-hashed-asset>.js` returns the JS asset directly with `Content-Type: application/javascript` — the SPA fallback does not swallow real static files.
 6. `curl http://localhost:8080/api/calendar/event_types` returns `[]` (or the seeded list); `curl http://localhost:8080/api/actuator/health` returns `{"status":"UP"}`.
 7. The Docker `HEALTHCHECK` directive uses `/api/actuator/health` and reports `healthy` within 30 s of container start.
 8. `compose.prod.yaml` (new, separate from the existing dev `compose.yaml`) brings up Postgres + the built app image with appropriate env-var wiring. `cp .env.example .env && <edit POSTGRES_PASSWORD> && docker compose -f compose.prod.yaml up -d --build` produces a working end-to-end stack with both services reporting `(healthy)` in `docker compose ps`. Postgres is **not** exposed on the host (no `ports:` on the postgres service); only the app's port is reachable.
 9. `application.yml`'s datasource block accepts env-var overrides (`SPRING_DATASOURCE_URL` etc.) without code changes — Spring Boot's relaxed binding handles this for free, but the README must document it.
 10. `backend/README.md` (created in Phase 5) gains a "Production image" section with build + run examples.
-11. **Not changed by Phase 6**: `application.yml` data values (only documented as overridable), all `src/main/java/**` source except a single new `SpaFallbackController` (or `WebMvcConfigurer`), all tests.
+11. `./gradlew clean build` stays `BUILD SUCCESSFUL`. Test count rises from STEP5's 44 → 48 (4 new `SpaFallbackControllerIT` methods).
+12. **Not changed by Phase 6**: `application.yml`, all `src/main/java/**` source except the single new `SpaFallbackController`, all existing tests, all Flyway migrations, the dev `compose.yaml`, the OpenAPI spec, and `frontend/`.
 
 ---
 
@@ -42,19 +43,23 @@ This is **not** done in `src/` directly: copying `dist/` into `src/main/resource
 
 ### B. SPA fallback via a single forwarding controller
 
-Spring Boot serves `/` → `index.html` automatically. But React Router paths like `/booking/se_xyz` resolve to a 404 from Spring's static resource handler because no `booking` directory exists in `static/`. Standard fix:
+Spring Boot serves `/` → `index.html` automatically. But React Router paths like `/book/et_xyz` and `/admin/event-types` resolve to a 404 from Spring's static resource handler because no `book` or `admin` directory exists in `static/`. Standard fix:
 
 ```java
 @Controller
 class SpaFallbackController {
-    @GetMapping(value = {"/{path:[^.]*}", "/{path:[^.]*}/**"})
+    @GetMapping(value = {"/{path:[^.]*}", "/**/{path:[^.]*}"})
     public String forward() {
         return "forward:/index.html";
     }
 }
 ```
 
-The regex `[^.]*` matches path segments without dots, so `/assets/index-abc123.js` (which contains a dot) is **not** caught by the fallback and falls through to the static resource handler. `/api/*` is also not caught because controllers under `CalendarApi` win the route table by priority. This pattern is well-documented in Spring Boot SPA recipes; ~12 lines of code, no config flags.
+The constraint `[^.]*` is on the **last** segment of each pattern: pattern 1 covers single-segment paths (`/foo`), pattern 2 covers any path whose last segment has no dot (`/admin/event-types`, `/book/et_intro-call_abc123`). Critically, `/assets/index-abc123.js` does **not** match either pattern because the last segment contains a dot — it falls through to Spring's static resource handler. Frontend routes (`/`, `/book/:eventTypeId`, `/admin/event-types`, `/admin/bookings`) are at most two segments deep, so the patterns cover everything React Router needs.
+
+`/api/*` is also not caught because controllers under `CalendarApi` win the route table by mapping specificity. ~12 lines of code, no config flags.
+
+> **Note on the earlier regex draft.** A common variant (`/{path:[^.]*}/**`) puts the no-dot constraint on the *first* segment with `**` trailing. That is wrong here: `**` matches anything including dots, so `/assets/foo.js` would forward to index.html and break exit criterion 5. The corrected pattern places the constraint on the last segment.
 
 Alternative considered: `WebMvcConfigurer.addViewControllers(registry)` — works the same way but is harder to make path-pattern-aware. The controller is clearer.
 
@@ -156,14 +161,14 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 class SpaFallbackController {
 
-    @GetMapping(value = {"/{path:[^.]*}", "/{path:[^.]*}/**"})
+    @GetMapping(value = {"/{path:[^.]*}", "/**/{path:[^.]*}"})
     String forward() {
         return "forward:/index.html";
     }
 }
 ```
 
-Package matches the existing `CalendarController`. Package-private class — not part of the public API.
+Package matches the existing `CalendarController` (`com.hexlet.calendar.web`). Package-private class — not part of the public API.
 
 ### Step 4 — `compose.prod.yaml` at repo root (new) + `.env.example`
 
@@ -239,7 +244,7 @@ APP_PORT=8080
 APP_VERSION=local
 ```
 
-`.gitignore` (repo root or backend) must include `.env` to keep real credentials out of version control. `.env.example` is committed.
+**Add `.env` to the repo-root `.gitignore`** to keep real credentials out of version control. The current root `.gitignore` does not have it; append `.env` so a careless `git add .` after editing local credentials doesn't leak the password. `.env.example` is committed.
 
 Production-readiness rationale per knob:
 - `restart: unless-stopped` — survives Docker daemon restarts; doesn't restart on explicit `docker compose down`.
@@ -286,7 +291,46 @@ Or use the production compose file at the repo root (Postgres + app, no host-exp
 The frontend serves from /, the API from /api/*, and the health endpoint from /api/actuator/health.
 ```
 
-### Step 6 — Verify the build context size
+Also bump the existing layout line `docs/STEP{1..5}.md` → `docs/STEP{1..6}.md` so the cross-reference stays accurate.
+
+### Step 6 — `backend/src/test/java/com/hexlet/calendar/web/SpaFallbackControllerIT.java` (new)
+
+Small `MockMvc` smoke test, anchoring the regex behaviour so a future "simplification" can't silently re-introduce the dotted-asset bug. Extends `AbstractIntegrationTest` for consistency with the other web ITs (no Testcontainers cost beyond what's already paid).
+
+```java
+class SpaFallbackControllerIT extends AbstractIntegrationTest {
+
+    @Test
+    void clientRoute_singleSegment_forwardsToIndexHtml() throws Exception {
+        mockMvc.perform(get("/admin")).andExpect(forwardedUrl("/index.html"));
+    }
+
+    @Test
+    void clientRoute_twoSegments_forwardsToIndexHtml() throws Exception {
+        mockMvc.perform(get("/admin/event-types")).andExpect(forwardedUrl("/index.html"));
+        mockMvc.perform(get("/book/et_intro-call_abc123")).andExpect(forwardedUrl("/index.html"));
+    }
+
+    @Test
+    void dottedAsset_isNotForwarded() throws Exception {
+        // /assets/foo.js has a dot in the last segment — must NOT be forwarded
+        // (would otherwise serve index.html as JS and break the SPA after deploy).
+        mockMvc.perform(get("/assets/foo.js"))
+            .andExpect(status().isNotFound())
+            .andExpect(forwardedUrl(null));
+    }
+
+    @Test
+    void apiPath_isNotForwarded_handledByCalendarController() throws Exception {
+        // /calendar/event_types is the API; must hit CalendarController, not the SPA fallback.
+        mockMvc.perform(get("/calendar/event_types")).andExpect(status().isOk());
+    }
+}
+```
+
+`AbstractIntegrationTest` sets the context-path to `/api`, so `MockMvc` paths are relative to `/api` here — `get("/calendar/event_types")` exercises `/api/calendar/event_types`. Test count rises from STEP5's 44 → 48.
+
+### Step 7 — Verify the build context size
 
 Before building, `du -sh $(git ls-files | head)` and `docker build --progress=plain` should agree the context excludes `node_modules`, `build/`, `.gradle/`. If the build context is >50 MB the `.dockerignore` is missing entries.
 
@@ -364,29 +408,27 @@ docker compose -f compose.prod.yaml down -v
 - `compose.prod.yaml` (repo root)
 - `.env.example` (repo root)
 - `backend/src/main/java/com/hexlet/calendar/web/SpaFallbackController.java`
+- `backend/src/test/java/com/hexlet/calendar/web/SpaFallbackControllerIT.java`
 
 **Modified:**
-- `backend/README.md` — append "Production image" section.
+- `backend/README.md` — append "Production image" section; bump `STEP{1..5}.md` → `STEP{1..6}.md` in the layout list.
+- `.gitignore` (repo root) — add `.env`.
 
 **NOT touched:**
 - `backend/src/main/resources/application.yml` — env-var override is automatic via Spring Boot relaxed binding; no config change needed.
 - `backend/compose.yaml` — stays the dev-mode Postgres-only compose for `./gradlew bootRun`.
 - `backend/src/main/resources/static/` — written into only inside the Docker stage; Git tree stays clean.
 - `frontend/` — production build is invoked from the Dockerfile via `npm run build`; no source changes.
-- All tests.
+- All other tests.
 
 ---
 
 ## Commit plan
 
-One commit, matching prior phases' single-bundle cadence:
+Two commits, separating the in-tree source change from the deployment-wrapper additions so the source change can be reviewed and reverted independently if it ever needs to be:
 
-- `feat: docker image bundling backend + frontend (phase 6)`
-
-If the SPA fallback controller turns out to need test coverage (e.g. a smoke `MockMvc` test asserting `/booking/x` forwards to `/index.html`), split into two commits:
-
-1. `feat(backend): SpaFallbackController for client-side routing`
-2. `feat: docker image bundling backend + frontend (phase 6)`
+1. `feat(backend): SpaFallbackController for client-side routing` — adds `SpaFallbackController.java` + `SpaFallbackControllerIT.java`. Touches only `backend/`. Independently shippable: `./gradlew clean build` stays green; runtime behaviour is unchanged until a `static/` payload is present.
+2. `feat: docker image bundling backend + frontend (phase 6)` — `Dockerfile`, `.dockerignore`, `compose.prod.yaml`, `.env.example`, root `.gitignore` update, README "Production image" section.
 
 ---
 
