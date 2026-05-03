@@ -36,10 +36,18 @@ Controllers serve OpenAPI paths under `server.servlet.context-path: /api`.
 Only the `health` actuator endpoint is exposed; details are hidden.
 
 ## Production image
-A repo-root `Dockerfile` builds a single image carrying the React frontend +
-the Spring backend.
+The repo ships two Dockerfiles at the root, one per deployment mode:
 
-    docker build -t calendar-app .
+- `Dockerfile.render` — Spring Boot only; expects an external Postgres reachable
+  via `SPRING_DATASOURCE_*` env vars. Used by [compose.prod.yaml](../compose.prod.yaml)
+  and the Render web service ([render.yaml](../render.yaml)).
+- `Dockerfile` — Spring Boot + bundled Postgres in a single container; boots
+  with only `PORT` set. See [docs/STEP9.md](docs/STEP9.md). The plain name is
+  required because some platforms auto-detect `./Dockerfile`.
+
+Build the render-style image and run it against an external Postgres:
+
+    docker build -f Dockerfile.render -t calendar-app .
     docker run --rm -p 8080:8080 \
       -e SPRING_DATASOURCE_URL=jdbc:postgresql://<db-host>:5432/calendar \
       -e SPRING_DATASOURCE_USERNAME=calendar \

@@ -9,7 +9,7 @@ services:
   - type: web
     name: calendar-app
     runtime: docker
-    dockerfilePath: ./Dockerfile
+    dockerfilePath: ./Dockerfile.render
     plan: free
     region: frankfurt
     healthCheckPath: /api/actuator/health

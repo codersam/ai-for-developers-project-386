@@ -22,7 +22,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.render
     image: calendar-app:${APP_VERSION:-local}
     restart: unless-stopped
     depends_on:
