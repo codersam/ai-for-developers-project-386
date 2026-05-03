@@ -266,3 +266,30 @@ Phase 5 closes REVIEW3's deferred items and CLAUDE.md §11.10. After it lands, t
 1. **Frontend wiring** (CLAUDE.md §9). Separate PR. `frontend/vite.config.ts` target swap from Prism (`:4010`) to Spring (`:8080`) and removal of the `/api` rewrite; `frontend/package.json` keeps `dev:mock` for the Prism workflow and adds `dev` for the real backend.
 2. **Optional request logging filter** (CLAUDE.md §11.10). Not justified yet — `logging.level.org.springframework.web=DEBUG` covers the local debugging case without the maintenance cost of an `OncePerRequestFilter`.
 3. **End-to-end frontend smoke** of the full guest + owner flows once the proxy points at the real backend (CLAUDE.md §12 step 8).
+
+---
+
+## Post-run notes (what actually shipped)
+
+`./gradlew clean build` is `BUILD SUCCESSFUL`. 44 tests green: 15 `SlotMathTest` (13 → 15 with the two new DST tests), 3 `AvailabilityServiceTest`, 5 `AvailableSlotsControllerIT`, 9 `ScheduledEventControllerIT`, 1 `ConcurrencyIT`, 5 `ErrorMappingIT`, 6 `EventTypeControllerIT` (new). Exit criterion 1 (~44) hit on the nose.
+
+Files created/modified match the plan's "Critical files" list, with one forced addition documented below.
+
+### Deviation 1 — `EventTypeService.create()` got a manual `durationMinutes < 1` check
+
+The plan's Architecture §F and exit criterion 2 (`negativeDuration_returns400ErrorBody`) assumed the OpenAPI generator would emit `@Positive` (or `@Min(1)`) on `CreateEventType.durationMinutes` because of a `minimum: 1` constraint in `spec/openapi.yaml`. Risk #5 explicitly told us to verify that by reading the generated DTO.
+
+Verification result: `spec/openapi.yaml:279-281` does **not** declare `minimum: 1` for `durationMinutes`, so the generated `CreateEventType` DTO carries only `@NotNull`. A negative value would slip past Bean Validation, hit the V1 `CHECK (duration_minutes > 0)` constraint, and surface as `DataIntegrityViolationException` with SQLSTATE `23514`. The current `ApiExceptionHandler.handleDataIntegrity` only special-cases `23P01` (the EXCLUDE-GIST exclusion) — `23514` falls through to the 500 branch. Without intervention, `negativeDuration_returns400ErrorBody` would return 500.
+
+Two repair paths considered:
+1. **Add `minimum: 1` to `spec/openapi.yaml`** — cleanest fit with the plan's wording, but the spec drives both backend and frontend codegen and was excluded from edits in this phase.
+2. **Add validation in the service bean** — costs one `if`-block in `EventTypeService.create` (a `service/` file, which exit criterion 8 listed as untouchable) but keeps the spec, generator config, and DB layer alone.
+
+Took path 2 at the user's direction. The added check throws `BadRequestException("durationMinutes: must be greater than or equal to 1")`, which `ApiExceptionHandler` already maps to a typed 400 `Error` body. The DB CHECK constraint stays as the second line of defence. Exit criterion 8 is therefore violated by exactly one production file (`service/EventTypeService.java`), with the trade-off explicitly recorded here.
+
+### Hand-off updates for a possible Phase 6
+
+- The duration-minimum is currently enforced in three places: the OpenAPI `@NotNull` (presence only), `EventTypeService.create` (the new manual check), and the V1 DB `CHECK`. If Phase 6 ever reopens the spec, adding `minimum: 1` to `CreateEventType.durationMinutes` would make the manual service check redundant — delete it then to keep one source of truth.
+- The actuator endpoint lives at `http://localhost:8080/api/actuator/health` (the `/api` prefix from `server.servlet.context-path` applies). README documents this; anyone hitting `/actuator/health` without the prefix will 404 and assume actuator is broken.
+- `dstFallBack_instantsStrictlyMonotonic` filters by Berlin-local date before counting (`hasSize(4)`) because the Sunday-only working-day setup in the test produces slots on the next Sunday too (within the 14-day window). The filter is what makes the four-slot count correct.
+- Local dev requires Docker to be running before `./gradlew clean build` — Testcontainers exits with `DockerClientProviderStrategy` errors otherwise. (Hit this once during the Phase 5 build.)

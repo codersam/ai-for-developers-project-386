@@ -12,6 +12,7 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -201,6 +202,48 @@ class SlotMathTest {
                 List.of(), List.of(), BERLIN, clock);
 
         assertThat(slots).contains(Instant.parse("2026-10-25T00:00:00Z"));
+    }
+
+    @Test
+    void dstSpringForward_skipsMissingHourLocal() {
+        Set<DayOfWeek> sunOnly = EnumSet.of(DayOfWeek.SUNDAY);
+        Clock clock = fixedAt("2026-03-28T23:00:00Z");
+
+        List<Instant> slots = SlotMath.generate(
+                30, BERLIN, LocalTime.of(1, 30), LocalTime.of(4, 0), sunOnly,
+                List.of(), List.of(), BERLIN, clock);
+
+        LocalDate dstDay = LocalDate.parse("2026-03-29");
+        for (Instant i : slots) {
+            ZonedDateTime zdt = i.atZone(BERLIN);
+            if (!zdt.toLocalDate().equals(dstDay)) {
+                continue;
+            }
+            LocalTime lt = zdt.toLocalTime();
+            assertThat(lt.isBefore(LocalTime.of(2, 0)) || !lt.isBefore(LocalTime.of(3, 0)))
+                    .as("Slot %s falls inside the missing 02:00–03:00 hour", lt)
+                    .isTrue();
+        }
+    }
+
+    @Test
+    void dstFallBack_instantsStrictlyMonotonic() {
+        Set<DayOfWeek> sunOnly = EnumSet.of(DayOfWeek.SUNDAY);
+        Clock clock = fixedAt("2026-10-24T22:00:00Z");
+
+        List<Instant> slots = SlotMath.generate(
+                30, BERLIN, LocalTime.of(2, 0), LocalTime.of(4, 0), sunOnly,
+                List.of(), List.of(), BERLIN, clock);
+
+        LocalDate dstDay = LocalDate.parse("2026-10-25");
+        List<Instant> dstDaySlots = slots.stream()
+                .filter(i -> i.atZone(BERLIN).toLocalDate().equals(dstDay))
+                .toList();
+
+        assertThat(dstDaySlots).hasSize(4).isSortedAccordingTo(Comparator.naturalOrder());
+        for (int i = 1; i < dstDaySlots.size(); i++) {
+            assertThat(dstDaySlots.get(i)).isAfter(dstDaySlots.get(i - 1));
+        }
     }
 
     @Test

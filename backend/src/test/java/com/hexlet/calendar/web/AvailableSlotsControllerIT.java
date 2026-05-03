@@ -14,7 +14,9 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @Transactional
@@ -44,7 +46,9 @@ class AvailableSlotsControllerIT extends AbstractIntegrationTest {
                 result.getResponse().getContentAsString(),
                 new TypeReference<List<TimeSlotsOfTheDay>>() {});
 
-        assertThat(body).hasSizeBetween(8, 10);
+        // FixedClockTestConfig.FIXED_NOW = 2026-05-04T05:00:00Z (Mon Berlin) → 14-day window
+        // covers Mon 5/4 through Sun 5/17, yielding 10 working days after weekends drop out.
+        assertThat(body).hasSize(10);
         assertThat(body.get(0).getTimeSlots().get(0).getTimeStart()).isEqualTo("09:00:00");
         assertThat(body.get(0).getTimeSlots().get(0).getDuration()).isEqualTo(30);
     }
@@ -90,14 +94,18 @@ class AvailableSlotsControllerIT extends AbstractIntegrationTest {
 
         mockMvc.perform(get("/calendar/event_types/{id}/available_slots", EVENT_TYPE_ID)
                         .param("clientTimeZone", "Mars/Phobos"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.message").value(containsString("Invalid timezone")));
     }
 
     @Test
     void unknownEventType_returns404() throws Exception {
         mockMvc.perform(get("/calendar/event_types/{id}/available_slots", "et_does_not_exist")
                         .param("clientTimeZone", "Europe/Berlin"))
-                .andExpect(status().isNotFound());
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404))
+                .andExpect(jsonPath("$.message").value(containsString("not found")));
     }
 
     @Test

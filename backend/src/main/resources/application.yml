@@ -29,3 +29,12 @@ spring:
 
 owner:
   timezone: Europe/Berlin
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
