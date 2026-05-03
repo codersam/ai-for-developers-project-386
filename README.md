@@ -4,3 +4,7 @@
 ### End-to-end tests
 
 Playwright E2E suite that exercises the production Docker image (Postgres + Spring Boot + React SPA) against the golden booking path. See [e2e/README.md](e2e/README.md) for prerequisites and how to run.
+
+### Deployed to Render.com
+
+Public link: https://hexlet-calendar-codersam.onrender.com/
