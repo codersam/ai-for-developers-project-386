@@ -35,8 +35,30 @@ Controllers serve OpenAPI paths under `server.servlet.context-path: /api`.
 
 Only the `health` actuator endpoint is exposed; details are hidden.
 
+## Production image
+A repo-root `Dockerfile` builds a single image carrying the React frontend +
+the Spring backend.
+
+    docker build -t calendar-app .
+    docker run --rm -p 8080:8080 \
+      -e SPRING_DATASOURCE_URL=jdbc:postgresql://<db-host>:5432/calendar \
+      -e SPRING_DATASOURCE_USERNAME=calendar \
+      -e SPRING_DATASOURCE_PASSWORD=calendar \
+      calendar-app
+
+Or use the production compose file at the repo root (Postgres + app, no
+host-exposed DB port):
+
+    cp .env.example .env
+    # edit .env and set POSTGRES_PASSWORD
+    docker compose -f compose.prod.yaml up -d --build
+    docker compose -f compose.prod.yaml ps   # both services should report (healthy)
+
+The frontend serves from `/`, the API from `/api/*`, and the health endpoint
+from `/api/actuator/health`.
+
 ## Layout
 - `spec/openapi.yaml` — contract source; generated DTOs + interfaces land in `build/generated/openapi/`.
 - `src/main/resources/db/migration/` — Flyway migrations.
 - `src/main/java/com/hexlet/calendar/` — application code.
-- `docs/STEP{1..5}.md` — phase-by-phase implementation history.
+- `docs/STEP{1..6}.md` — phase-by-phase implementation history.

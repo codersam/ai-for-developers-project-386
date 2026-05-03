@@ -1,0 +1,53 @@
+name: calendar
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-calendar}
+      POSTGRES_USER: ${POSTGRES_USER:-calendar}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - calendar-pgdata-prod:/var/lib/postgresql/data
+    networks:
+      - calendar-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-calendar} -d ${POSTGRES_DB:-calendar}"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: calendar-app:${APP_VERSION:-local}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-calendar}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-calendar}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      SPRING_DOCKER_COMPOSE_ENABLED: "false"
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=75 -XX:+UseContainerSupport"
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    networks:
+      - calendar-net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/api/actuator/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+networks:
+  calendar-net:
+    driver: bridge
+
+volumes:
+  calendar-pgdata-prod:

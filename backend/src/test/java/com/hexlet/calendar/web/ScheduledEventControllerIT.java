@@ -54,7 +54,7 @@ class ScheduledEventControllerIT extends AbstractIntegrationTest {
 
         CreateScheduledEvent body = payload(EVENT_TYPE_ID, LocalDate.parse("2026-05-04"), "10:00:00");
 
-        MvcResult result = mockMvc.perform(post("/calendar/scheduled_events")
+        MvcResult result = mockMvc.perform(post("/api/calendar/scheduled_events")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isOk())
@@ -67,12 +67,12 @@ class ScheduledEventControllerIT extends AbstractIntegrationTest {
         ScheduledEvent created = objectMapper.readValue(
                 result.getResponse().getContentAsString(), ScheduledEvent.class);
 
-        mockMvc.perform(get("/calendar/scheduled_events/{id}", created.getScheduledEventId()))
+        mockMvc.perform(get("/api/calendar/scheduled_events/{id}", created.getScheduledEventId()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.scheduledEventId").value(created.getScheduledEventId()))
                 .andExpect(jsonPath("$.utcDateStart").value("2026-05-04T08:00:00Z"));
 
-        MvcResult listResult = mockMvc.perform(get("/calendar/scheduled_events"))
+        MvcResult listResult = mockMvc.perform(get("/api/calendar/scheduled_events"))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -89,7 +89,7 @@ class ScheduledEventControllerIT extends AbstractIntegrationTest {
 
         CreateScheduledEvent body = payload(EVENT_TYPE_ID, LocalDate.parse("2026-05-25"), "10:00:00");
 
-        mockMvc.perform(post("/calendar/scheduled_events")
+        mockMvc.perform(post("/api/calendar/scheduled_events")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest())
@@ -103,7 +103,7 @@ class ScheduledEventControllerIT extends AbstractIntegrationTest {
 
         CreateScheduledEvent body = payload(EVENT_TYPE_ID, LocalDate.parse("2026-05-04"), "05:30:00");
 
-        mockMvc.perform(post("/calendar/scheduled_events")
+        mockMvc.perform(post("/api/calendar/scheduled_events")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest())
@@ -117,7 +117,7 @@ class ScheduledEventControllerIT extends AbstractIntegrationTest {
 
         CreateScheduledEvent body = payload(EVENT_TYPE_ID, LocalDate.parse("2026-05-04"), "09:15:00");
 
-        mockMvc.perform(post("/calendar/scheduled_events")
+        mockMvc.perform(post("/api/calendar/scheduled_events")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest())
@@ -129,7 +129,7 @@ class ScheduledEventControllerIT extends AbstractIntegrationTest {
     void create_unknownEventType_returns404() throws Exception {
         CreateScheduledEvent body = payload("et_does_not_exist", LocalDate.parse("2026-05-04"), "10:00:00");
 
-        mockMvc.perform(post("/calendar/scheduled_events")
+        mockMvc.perform(post("/api/calendar/scheduled_events")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isNotFound())
@@ -143,7 +143,7 @@ class ScheduledEventControllerIT extends AbstractIntegrationTest {
         CreateScheduledEvent body = payload(EVENT_TYPE_ID, LocalDate.parse("2026-05-04"), "10:00:00");
         body.setGuestTimezone("Mars/Phobos");
 
-        mockMvc.perform(post("/calendar/scheduled_events")
+        mockMvc.perform(post("/api/calendar/scheduled_events")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(body)))
                 .andExpect(status().isBadRequest())
@@ -157,13 +157,13 @@ class ScheduledEventControllerIT extends AbstractIntegrationTest {
         persistEventType(EVENT_TYPE_ID_B, "Demo", 30);
 
         CreateScheduledEvent first = payload(EVENT_TYPE_ID, LocalDate.parse("2026-05-04"), "10:00:00");
-        mockMvc.perform(post("/calendar/scheduled_events")
+        mockMvc.perform(post("/api/calendar/scheduled_events")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(first)))
                 .andExpect(status().isOk());
 
         CreateScheduledEvent second = payload(EVENT_TYPE_ID_B, LocalDate.parse("2026-05-04"), "10:00:00");
-        mockMvc.perform(post("/calendar/scheduled_events")
+        mockMvc.perform(post("/api/calendar/scheduled_events")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(second)))
                 .andExpect(status().isConflict())
@@ -173,7 +173,7 @@ class ScheduledEventControllerIT extends AbstractIntegrationTest {
 
     @Test
     void getById_unknownId_returns404() throws Exception {
-        mockMvc.perform(get("/calendar/scheduled_events/{id}", "se_does_not_exist_aaaaaaa"))
+        mockMvc.perform(get("/api/calendar/scheduled_events/{id}", "se_does_not_exist_aaaaaaa"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404));
     }
@@ -191,7 +191,7 @@ class ScheduledEventControllerIT extends AbstractIntegrationTest {
         scheduledEventRepo.save(buildSe("se_c_3333333333333333333333",
                 OffsetDateTime.of(2026, 5, 4, 10, 0, 0, 0, ZoneOffset.UTC)));
 
-        MvcResult result = mockMvc.perform(get("/calendar/scheduled_events"))
+        MvcResult result = mockMvc.perform(get("/api/calendar/scheduled_events"))
                 .andExpect(status().isOk())
                 .andReturn();
 

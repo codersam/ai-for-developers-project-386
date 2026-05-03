@@ -25,7 +25,7 @@ class EventTypeControllerIT extends AbstractIntegrationTest {
         String body = """
                 {"eventTypeName":"Intro Call","description":"Short chat","durationMinutes":30}""";
 
-        mockMvc.perform(post("/calendar/event_types")
+        mockMvc.perform(post("/api/calendar/event_types")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk())
@@ -37,7 +37,7 @@ class EventTypeControllerIT extends AbstractIntegrationTest {
 
     @Test
     void missingRequiredField_returns400ErrorBody() throws Exception {
-        mockMvc.perform(post("/calendar/event_types")
+        mockMvc.perform(post("/api/calendar/event_types")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isBadRequest())
@@ -47,7 +47,7 @@ class EventTypeControllerIT extends AbstractIntegrationTest {
 
     @Test
     void malformedJson_returns400ErrorBody() throws Exception {
-        mockMvc.perform(post("/calendar/event_types")
+        mockMvc.perform(post("/api/calendar/event_types")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{not json"))
                 .andExpect(status().isBadRequest())
@@ -60,7 +60,7 @@ class EventTypeControllerIT extends AbstractIntegrationTest {
         String body = """
                 {"eventTypeName":"Bad","description":"d","durationMinutes":-5}""";
 
-        mockMvc.perform(post("/calendar/event_types")
+        mockMvc.perform(post("/api/calendar/event_types")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isBadRequest())
@@ -70,7 +70,7 @@ class EventTypeControllerIT extends AbstractIntegrationTest {
 
     @Test
     void listEmpty_returns200EmptyArray() throws Exception {
-        mockMvc.perform(get("/calendar/event_types"))
+        mockMvc.perform(get("/api/calendar/event_types"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
     }
@@ -83,7 +83,7 @@ class EventTypeControllerIT extends AbstractIntegrationTest {
         Thread.sleep(5);
         postEventType("Third Type");
 
-        MvcResult result = mockMvc.perform(get("/calendar/event_types"))
+        MvcResult result = mockMvc.perform(get("/api/calendar/event_types"))
                 .andExpect(status().isOk())
                 .andReturn();
 
@@ -99,7 +99,7 @@ class EventTypeControllerIT extends AbstractIntegrationTest {
     private void postEventType(String name) throws Exception {
         String body = """
                 {"eventTypeName":"%s","description":"d","durationMinutes":30}""".formatted(name);
-        mockMvc.perform(post("/calendar/event_types")
+        mockMvc.perform(post("/api/calendar/event_types")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk());

@@ -11,6 +11,7 @@ import com.hexlet.calendar.mapping.ScheduledEventMapper;
 import com.hexlet.calendar.web.error.BadRequestException;
 import com.hexlet.calendar.web.error.ConflictException;
 import com.hexlet.calendar.web.error.NotFoundException;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -113,6 +114,12 @@ public class ScheduledEventService {
                 .map(TimeSlot::getTimeStart)
                 .anyMatch(requestedTime::equals);
         if (!aligned) {
+            // Disambiguate: a recently-committed booking from another transaction may have
+            // landed between our existsOverlapping check above and listAvailableSlots, which
+            // recomputes a fresh DB read. If so, this is a race outcome → 409, not 400.
+            if (scheduledEventRepo.existsOverlapping(utcStart, utcEnd)) {
+                throw new ConflictException("Slot is no longer available");
+            }
             throw new BadRequestException("Slot is not available");
         }
 
@@ -135,6 +142,11 @@ public class ScheduledEventService {
                 throw new ConflictException("Slot is no longer available");
             }
             throw ex;
+        } catch (CannotAcquireLockException ex) {
+            // Postgres deadlock during EXCLUDE constraint check (SQLSTATE 40P01) under
+            // concurrent INSERTs targeting the same time range. The DB still settles to one
+            // row; for the loser, this is semantically a slot collision, not a 5xx.
+            throw new ConflictException("Slot is no longer available");
         }
     }
 

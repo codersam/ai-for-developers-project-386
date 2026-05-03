@@ -10,6 +10,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.sql.SQLException;
 import java.util.stream.Collectors;
@@ -53,6 +54,11 @@ public class ApiExceptionHandler {
 
     private static boolean isExclusionViolation(Throwable cause) {
         return cause instanceof SQLException sql && "23P01".equals(sql.getSQLState());
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<com.hexlet.calendar.generated.model.Error> handleNoResource(NoResourceFoundException ex) {
+        return respond(404, "Not found: " + ex.getResourcePath());
     }
 
     @ExceptionHandler(ResponseStatusException.class)

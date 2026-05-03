@@ -439,3 +439,106 @@ Two commits, separating the in-tree source change from the deployment-wrapper ad
 3. **Production secrets management** — the env-var pattern works, but a real deploy needs a secrets store (Kubernetes secrets, AWS SSM, etc.). Out of scope.
 4. **Read-only root filesystem** — `--read-only` flag plus `--tmpfs /tmp` for further hardening. Optional.
 5. **JVM container tuning** — `-XX:MaxRAMPercentage=75` if memory limits are tight. JDK 21 defaults are usually fine.
+
+---
+
+## Post-run notes (what actually shipped)
+
+`./gradlew clean build` is `BUILD SUCCESSFUL`. 49 tests green: 15 `SlotMathTest`, 3 `AvailabilityServiceTest`, 5 `AvailableSlotsControllerIT`, 9 `ScheduledEventControllerIT`, 1 `ConcurrencyIT`, 5 `ErrorMappingIT`, 6 `EventTypeControllerIT`, 5 `SpaFallbackControllerIT` (one more than the planned 4 — see Deviation 4). Plan said "44 → 48"; reality is 44 → 49.
+
+`docker compose -f compose.prod.yaml up -d --build` brings up both services `(healthy)`; the manual curl matrix below all returned the expected responses against a fresh stack, end-to-end:
+
+- `/`, `/admin/event-types`, `/admin/bookings`, `/book/et_intro-call_abc123` → `200 text/html` (index.html or SPA-fallback forward).
+- `/favicon.svg` → `200 image/svg+xml`; `/assets/index-Btz9-k5d.js` → `200 text/javascript`.
+- `/api/calendar/event_types` → `[]`; `POST` then `GET` round-trip and `available_slots?clientTimeZone=Europe/Berlin` shape match the spec.
+- `/api/actuator/health` → `{"status":"UP"}`; Docker `HEALTHCHECK` reports `healthy`.
+- `/typo` and `/api/this-doesnt-exist` → typed `{"code":404,"message":"Not found: …"}`. (Was 500 in the first verification pass — see Deviation 5.)
+- `nc -z localhost 5432` fails: Postgres internal-only.
+
+Created/modified files match the plan, with the additions documented below.
+
+### Deviation 1 — `ScheduledEventService.create()` got the alignment-race + deadlock fix
+
+Plan said "Not changed by Phase 6: all `src/main/java/**` source except a single new `SpaFallbackController`". `ConcurrencyIT` had been claimed green at end of STEP5; it's actually flaky on this system (3 of 4 isolated runs failed under the original plan's assumptions). Debug logging surfaced three legitimate race outcomes, only one of which the production code mapped to a sensible HTTP status:
+
+1. **Postgres deadlock during EXCLUDE check (SQLSTATE `40P01`)** — both threads insert simultaneously, the GiST exclusion check requires per-tuple ShareLocks, and the lock cycle aborts one transaction with `CannotAcquireLockException`. The DB still settles to one row. The original code let this propagate to the catch-all `Exception` handler → 500.
+2. **Clean exclusion violation (`23P01`)** — already handled correctly → 409.
+3. **Alignment-race** — thread A commits between thread B's `existsOverlapping` (line 104, only sees committed data under READ_COMMITTED) and `listAvailableSlots` (recomputes a fresh DB read). B's alignment check then rejects the (now-booked) slot as `BadRequestException` → 400. Conflates a race outcome with a static caller-error.
+
+Fix (~6 lines):
+
+- On alignment failure, re-check `existsOverlapping` (which now sees the other thread's commit). If true → `ConflictException` (409); otherwise → `BadRequestException` (400). Disambiguates race vs. caller-error.
+- Catch `CannotAcquireLockException` around `saveAndFlush` → `ConflictException`. Postgres deadlock during EXCLUDE check is semantically a slot collision for the loser, not a 5xx.
+
+Net effect: every race outcome surfaces as 409 with the same `Error` body. `ConcurrencyIT` passes deterministically on subsequent runs (3 consecutive `BUILD SUCCESSFUL` in row to verify).
+
+### Deviation 2 — Option B URL refactor (dropped `server.servlet.context-path: /api`)
+
+The plan assumed `server.servlet.context-path: /api` (CLAUDE.md §7) was compatible with serving the React app at `/`. It isn't — Spring serves the *entire* application (controllers, static resources, actuator) under the context-path. Verification curls confirmed: with the original config, `http://localhost:8080/` → 404; only `http://localhost:8080/api/` returned index.html, and even then the Vite-built `index.html` references `/favicon.svg` and `/assets/...` (no `/api` prefix) so the browser would 404 on every asset.
+
+Two paths considered: (A) embrace the `/api/` URL prefix for the whole app and add `base: "/api/"` to `vite.config.ts`; (B) drop the context-path, prefix controllers explicitly, and serve static at `/`. Took (B) — matches CLAUDE.md §9's stated design ("React serves from `/`, API from `/api/*`, no reverse proxy needed in production").
+
+Concrete changes (none of which the original STEP6 plan called out as in scope):
+
+- `application.yml`: removed `server.servlet.context-path: /api`; added `management.endpoints.web.base-path: /api/actuator` so the actuator URL stays at `/api/actuator/health`.
+- `CalendarController`: added class-level `@RequestMapping("/api")`. The generated `CalendarApi` interface puts `@RequestMapping(value = "/calendar/...")` on each method, and Spring concatenates → `/api/calendar/...`. No change to the OpenAPI spec or generator config.
+- All 4 web ITs (`AvailableSlotsControllerIT`, `ErrorMappingIT`, `EventTypeControllerIT`, `ScheduledEventControllerIT`): 29 `mockMvc.perform(...("/calendar/...")` → `("/api/calendar/...")` rewrites. STEP6 had explicitly listed these as "NOT touched"; they had to change because the URL space genuinely moved.
+
+`ConcurrencyIT` was untouched (no MockMvc paths — it calls `ScheduledEventService` directly).
+
+### Deviation 3 — `SpaFallbackController` regex → explicit route prefixes
+
+The plan's regex `{"/{path:[^.]*}", "/**/{path:[^.]*}"}` (already a correction of the original draft's first-segment-anchored bug) caught any non-dot path including `/api/whatever-unmapped` once context-path was removed. With Option B in place, an unmapped API path would be silently forwarded to `index.html` and broken API clients would get HTML instead of a 404 JSON body.
+
+Replacement: enumerate the actual React Router prefixes from `frontend/src/routes/index.tsx`:
+
+```java
+@GetMapping(value = {"/admin/**", "/book/**"})
+String forward() { return "forward:/index.html"; }
+```
+
+`/` is served by Spring's static resource handler for free; `/admin/...` and `/book/...` cover every non-root SPA route the frontend declares. New top-level routes will require updating this list — flagged as a deliberate boundary contract rather than a regex tuned to "anything that doesn't look like an asset". A single test (`unmappedApiPath_returns404_notForwarded`) anchors that `/api/foo` is not swallowed.
+
+### Deviation 4 — `SpaFallbackControllerIT` has 5 tests, not 4
+
+Plan listed 4: single-segment forward, two-segment forward, dotted-asset non-forward, API non-forward. After Deviation 3 the regex contract collapsed; the test file was rewritten around the prefix contract:
+
+1. `adminRoute_forwardsToIndexHtml` — `/admin/event-types` and `/admin/bookings`.
+2. `bookRoute_forwardsToIndexHtml` — `/book/et_intro-call_abc123`.
+3. `apiPath_isNotForwarded_handledByCalendarController` — `/api/calendar/event_types` returns 200 from the controller.
+4. `unknownTopLevelPath_returns404_notForwarded` — `/typo` returns a typed 404, not a forward and not 500.
+5. `unmappedApiPath_returns404_notForwarded` — `/api/this-endpoint-does-not-exist` returns a typed 404.
+
+The dotted-asset test from the original plan was dropped: with the prefix-based controller, `/assets/foo.js` doesn't match `/admin/**` or `/book/**` regardless of the dot, so the regex-anchoring rationale no longer applies.
+
+### Deviation 5 — `ApiExceptionHandler` got a `NoResourceFoundException` → 404 mapping
+
+Surfaced in the verification curls: `/typo` and `/api/this-doesnt-exist` returned 500. Spring's `DispatcherServlet` raises `NoResourceFoundException` when no controller or static resource matches; the existing `@ExceptionHandler(Exception.class)` catch-all swallowed it as a 500 with "Internal server error". Real bug, not specific to STEP6 but only visible once an unmapped path could actually reach the dispatcher (under context-path `/api` everything outside it 404'd from Tomcat directly).
+
+Fix: a 4-line `@ExceptionHandler(NoResourceFoundException.class)` that returns `{"code":404,"message":"Not found: <path>"}`. Tests in Deviation 4 anchor it.
+
+### Deviation 6 — image size 264 MB, not the planned ≤120 MB
+
+The plan's exit criterion 1 said `≤120 MB`. Reality on this system: 264 MB. Breakdown:
+
+- `eclipse-temurin:21-jre-alpine` base ≈ 210 MB (JRE 21 with all standard modules; the alpine JRE is bigger than older estimates because Temurin ships full JRE, not a stripped one).
+- Spring Boot fat JAR with our deps (Hibernate, Postgres driver, Flyway, Tomcat, Validation, Actuator, MapStruct runtime, OpenAPI Jackson nullable, Snake YAML, Logback, Spring Boot Docker Compose support) ≈ 50 MB.
+- Frontend `dist/` baked into `static/` ≈ 1 MB.
+
+Hitting ≤120 MB would require either (a) `jlink` to produce a custom JRE with only the modules we use, or (b) Spring Boot's layered JAR + tools.jar trimming. Neither is justified at this scale — the image works, deploys cleanly, and the 120 MB target was an unverified estimate. Exit criterion 1 is therefore **violated as written**; trade-off recorded here.
+
+### Deviation 7 — `node:20-alpine` → `node:24-alpine` in the Dockerfile
+
+User-applied edit during the build cycle. Rebuilds verified to still produce a working image. Original plan had pinned `node:20-alpine`; STEP6.md not retroactively updated (the Dockerfile is the source of truth).
+
+### Deviation 8 — `application.yml` modified
+
+Plan listed `application.yml` under "NOT touched" with the rationale that env-var overrides via Spring relaxed binding don't require config changes for `SPRING_DATASOURCE_*`. That part still holds. But Deviation 2 forced two structural changes: removing `server.servlet.context-path: /api` and adding `management.endpoints.web.base-path: /api/actuator`. So the file is touched, just not for the env-var reason the plan was reasoning about.
+
+### Hand-off updates for downstream work
+
+- The `/api` prefix on API endpoints is now enforced by `@RequestMapping("/api")` on `CalendarController`, not by `server.servlet.context-path`. Anyone adding a new controller class outside `CalendarController` must remember to also annotate it (or an upstream `@RequestMapping("/api")` config). MockMvc test paths must include `/api/...` accordingly.
+- The frontend route table in `frontend/src/routes/index.tsx` is now load-bearing for the SPA fallback. Adding a new top-level route (e.g. `/settings`, `/help`) requires adding the corresponding `/<prefix>/**` to `SpaFallbackController.@GetMapping`. A pre-prod smoke test of the full route list is the cheapest way to catch a miss.
+- `CannotAcquireLockException` and `NoResourceFoundException` mappings in `ApiExceptionHandler` are now load-bearing for race outcomes and 404 semantics; do not generalize them away in a future refactor without test coverage.
+- The duration-minimum manual check from STEP5 (`EventTypeService.create`) is unchanged — STEP6 didn't reopen `spec/openapi.yaml` so the redundancy persists. Still a candidate for cleanup if a future phase adds `minimum: 1` to `CreateEventType.durationMinutes` in the spec.
+- The frontend's `vite.config.ts` proxy (`target: "http://127.0.0.1:4010"` + `/api` rewrite) still points at Prism. Switching it to the real backend (`target: "http://127.0.0.1:8080"`, drop the rewrite) is the deferred PR from CLAUDE.md §9 — independently useful for dev-mode but not required by Phase 6 since production serves the React build from Spring's static resources.

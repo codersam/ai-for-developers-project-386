@@ -37,7 +37,7 @@ class AvailableSlotsControllerIT extends AbstractIntegrationTest {
     void happyPath_returns14DayWindowOfSlots() throws Exception {
         persistEventType(30);
 
-        MvcResult result = mockMvc.perform(get("/calendar/event_types/{id}/available_slots", EVENT_TYPE_ID)
+        MvcResult result = mockMvc.perform(get("/api/calendar/event_types/{id}/available_slots", EVENT_TYPE_ID)
                         .param("clientTimeZone", "Europe/Berlin"))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -70,7 +70,7 @@ class AvailableSlotsControllerIT extends AbstractIntegrationTest {
         se.setGuestTimezone("Europe/Berlin");
         scheduledEventRepo.save(se);
 
-        MvcResult result = mockMvc.perform(get("/calendar/event_types/{id}/available_slots", EVENT_TYPE_ID)
+        MvcResult result = mockMvc.perform(get("/api/calendar/event_types/{id}/available_slots", EVENT_TYPE_ID)
                         .param("clientTimeZone", "Europe/Berlin"))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -92,7 +92,7 @@ class AvailableSlotsControllerIT extends AbstractIntegrationTest {
     void invalidClientTimeZone_returns400() throws Exception {
         persistEventType(30);
 
-        mockMvc.perform(get("/calendar/event_types/{id}/available_slots", EVENT_TYPE_ID)
+        mockMvc.perform(get("/api/calendar/event_types/{id}/available_slots", EVENT_TYPE_ID)
                         .param("clientTimeZone", "Mars/Phobos"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
@@ -101,7 +101,7 @@ class AvailableSlotsControllerIT extends AbstractIntegrationTest {
 
     @Test
     void unknownEventType_returns404() throws Exception {
-        mockMvc.perform(get("/calendar/event_types/{id}/available_slots", "et_does_not_exist")
+        mockMvc.perform(get("/api/calendar/event_types/{id}/available_slots", "et_does_not_exist")
                         .param("clientTimeZone", "Europe/Berlin"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404))
@@ -112,7 +112,7 @@ class AvailableSlotsControllerIT extends AbstractIntegrationTest {
     void weekendsHaveNoSlots() throws Exception {
         persistEventType(30);
 
-        MvcResult result = mockMvc.perform(get("/calendar/event_types/{id}/available_slots", EVENT_TYPE_ID)
+        MvcResult result = mockMvc.perform(get("/api/calendar/event_types/{id}/available_slots", EVENT_TYPE_ID)
                         .param("clientTimeZone", "Europe/Berlin"))
                 .andExpect(status().isOk())
                 .andReturn();

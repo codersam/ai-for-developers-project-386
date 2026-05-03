@@ -10,11 +10,13 @@ import com.hexlet.calendar.service.AvailabilityService;
 import com.hexlet.calendar.service.EventTypeService;
 import com.hexlet.calendar.service.ScheduledEventService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
 @RestController
+@RequestMapping("/api")
 public class CalendarController implements CalendarApi {
 
     private final EventTypeService eventTypeService;

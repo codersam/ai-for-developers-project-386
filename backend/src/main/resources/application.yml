@@ -1,7 +1,5 @@
 server:
   port: 8080
-  servlet:
-    context-path: /api
 
 spring:
   application:
@@ -33,6 +31,7 @@ owner:
 management:
   endpoints:
     web:
+      base-path: /api/actuator
       exposure:
         include: health
   endpoint:
