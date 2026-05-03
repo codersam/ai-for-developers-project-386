@@ -25,5 +25,5 @@ COPY --from=backend-builder --chown=app:app /app/backend/build/libs/*.jar /app/a
 USER app
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=3 \
-  CMD wget -qO- http://localhost:8080/api/actuator/health | grep -q '"status":"UP"' || exit 1
+  CMD wget -qO- http://localhost:${PORT:-8080}/api/actuator/health | grep -q '"status":"UP"' || exit 1
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

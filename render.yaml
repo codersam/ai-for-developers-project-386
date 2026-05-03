@@ -1,0 +1,35 @@
+databases:
+  - name: calendar-db
+    plan: free
+    databaseName: calendar
+    user: calendar
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: calendar-app
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: frankfurt
+    healthCheckPath: /api/actuator/health
+    envVars:
+      - key: PORT
+        value: "8080"
+
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+
+      - key: SPRING_DATASOURCE_USERNAME
+        fromDatabase:
+          name: calendar-db
+          property: user
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromDatabase:
+          name: calendar-db
+          property: password
+
+      - key: SPRING_DOCKER_COMPOSE_ENABLED
+        value: "false"
+      - key: JAVA_TOOL_OPTIONS
+        value: "-XX:MaxRAMPercentage=75 -XX:+UseContainerSupport"
