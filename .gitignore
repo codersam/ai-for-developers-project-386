@@ -11,3 +11,7 @@ node_modules/
 
 # Local environment overrides (compose.prod.yaml reads from .env)
 .env
+
+# Playwright E2E (e2e/)
+e2e/test-results/
+e2e/playwright-report/
