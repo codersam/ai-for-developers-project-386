@@ -22,7 +22,7 @@ spring:
       enabled: true
   docker:
     compose:
-      enabled: true
+      enabled: false
       lifecycle-management: start-and-stop
 
 owner:
